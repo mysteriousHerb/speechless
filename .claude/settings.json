@@ -1,0 +1,14 @@
+{
+  "enabledPlugins": {
+    "harness@adhd-coder": true
+  },
+  "extraKnownMarketplaces": {
+    "adhd-coder": {
+      "source": {
+        "source": "github",
+        "repo": "mysteriousHerb/adhd_coder"
+      },
+      "autoUpdate": true
+    }
+  }
+}
