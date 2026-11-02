@@ -616,3 +616,47 @@ def test_transcribe_failure_becomes_502(client):
 
 def test_transcribe_rejects_empty_audio(client):
     assert transcribe(client, data=b"").status_code == 422
+
+
+# --- backend outages and the deploy boundary ----------------------------------
+
+
+def test_elevenlabs_transport_failures_are_502_so_the_client_falls_back(client, monkeypatch):
+    """A DNS or connect failure is as "broken" as a refusal: the phone must get a 502,
+    never a 500, or it will not fall back to the browser voice."""
+
+    def unreachable(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("nope", request=request)
+
+    app.state.http = httpx.AsyncClient(transport=httpx.MockTransport(unreachable))
+    assert speak(client).status_code == 502
+    assert client.get("/api/voices?backend=elevenlabs").status_code == 502
+    res = client.post("/api/transcribe", files={"audio": ("u.webm", b"bytes", "audio/webm")})
+    assert res.status_code == 502
+
+
+def test_tidy_accepts_a_scrambled_word_in_a_short_message(client):
+    """Short replies are the common case; the paraphrase guard must not eat the one
+    kind of fix the LLM exists for (a dictionary could not unscramble "firhg")."""
+
+    def answer(typed, text):
+        client.state["llm"] = [(200, {"choices": [{"message": {"content": json.dumps({"text": text})}}]})]
+        return client.post("/api/tidy", json={"text": typed}).json()["text"]
+
+    assert answer("firhg", "right") == "right"
+    assert answer("thats firhg", "that's right") == "that's right"
+    # A different word altogether is still a rewrite.
+    assert answer("cat", "dog") == "cat"
+
+
+def test_spa_never_serves_files_outside_web_dist(client):
+    from speechless_api.config import WEB_DIST
+
+    if not WEB_DIST.is_dir():
+        pytest.skip("web/dist not built")
+    assert (WEB_DIST / "index.html").is_file()
+    # An encoded ../ reaches the route undecoded by the client and decoded by the server.
+    res = client.get("/%2e%2e/%2e%2e/api/pyproject.toml")
+    assert res.status_code == 200
+    assert b"[project]" not in res.content
+    assert b"<!doctype html" in res.content.lower()

@@ -65,7 +65,10 @@ async def stream_elevenlabs(
         headers={"xi-api-key": api_key, "accept": "audio/mpeg"},
         json=payload,
     )
-    response = await client.send(request, stream=True)
+    try:
+        response = await client.send(request, stream=True)
+    except httpx.HTTPError as exc:
+        raise TTSError(502, f"ElevenLabs unreachable: {type(exc).__name__}") from exc
     if response.status_code >= 400:
         body = await response.aread()
         await response.aclose()
@@ -74,13 +77,18 @@ async def stream_elevenlabs(
         async for chunk in response.aiter_bytes():
             if chunk:
                 yield chunk
+    except httpx.HTTPError as exc:
+        raise TTSError(502, f"ElevenLabs stream broke: {type(exc).__name__}") from exc
     finally:
         await response.aclose()
 
 
 async def list_elevenlabs_voices(client: httpx.AsyncClient, *, api_key: str) -> list[Voice]:
     """Voices visible to this key: ElevenLabs' stock voices plus the account's own."""
-    response = await client.get(f"{ELEVENLABS_BASE}/v1/voices", headers={"xi-api-key": api_key})
+    try:
+        response = await client.get(f"{ELEVENLABS_BASE}/v1/voices", headers={"xi-api-key": api_key})
+    except httpx.HTTPError as exc:
+        raise TTSError(502, f"ElevenLabs unreachable: {type(exc).__name__}") from exc
     if response.status_code >= 400:
         raise TTSError(
             response.status_code, _describe_elevenlabs_error(response.status_code, response.content)

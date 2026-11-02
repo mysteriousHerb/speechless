@@ -323,12 +323,23 @@ def _parse_tidy(content: str, original: str) -> str:
 
 def _rewrote(original: str, fixed: str) -> bool:
     """True when `fixed` is a paraphrase rather than a typo fix: the word count moved a
-    lot, or too few of the typed words survive (a typo fix keeps a near-identical word)."""
+    lot, or too few of the typed words survive. A typo fix keeps a near-identical word,
+    or the same letters shuffled ("firhg" -> "right"), so both count as survival."""
     before = re.findall(r"[\w']+", original.lower())
     after = re.findall(r"[\w']+", fixed.lower())
     if not before:
         return False
     if abs(len(before) - len(after)) > max(1, len(before) // 4):
         return True
-    kept = sum(1 for w in before if w in after or difflib.get_close_matches(w, after, n=1, cutoff=0.6))
+    kept = sum(1 for w in before if _survives(w, after))
     return kept < len(before) * 0.6
+
+
+def _survives(word: str, after: list[str]) -> bool:
+    if word in after or difflib.get_close_matches(word, after, n=1, cutoff=0.6):
+        return True
+    letters = "".join(sorted(word))
+    return any(
+        abs(len(a) - len(word)) <= 1 and difflib.SequenceMatcher(None, letters, "".join(sorted(a))).ratio() >= 0.75
+        for a in after
+    )

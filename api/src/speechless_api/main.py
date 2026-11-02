@@ -245,7 +245,8 @@ if WEB_DIST.is_dir():
 
     @app.get("/{path:path}", include_in_schema=False)
     async def spa(path: str):
-        candidate = WEB_DIST / path
-        if path and candidate.is_file():
+        # Only files under web/dist: an encoded "../" must not walk out to .env.
+        candidate = (WEB_DIST / path).resolve()
+        if path and candidate.is_relative_to(WEB_DIST.resolve()) and candidate.is_file():
             return FileResponse(candidate)
         return FileResponse(WEB_DIST / "index.html")

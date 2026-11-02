@@ -27,12 +27,15 @@ async def transcribe_elevenlabs(
     data: dict[str, str] = {"model_id": SCRIBE_MODEL, "tag_audio_events": "false"}
     if language_code:
         data["language_code"] = language_code
-    response = await client.post(
-        f"{ELEVENLABS_BASE}/v1/speech-to-text",
-        headers={"xi-api-key": api_key},
-        data=data,
-        files={"file": ("utterance", audio, content_type or "application/octet-stream")},
-    )
+    try:
+        response = await client.post(
+            f"{ELEVENLABS_BASE}/v1/speech-to-text",
+            headers={"xi-api-key": api_key},
+            data=data,
+            files={"file": ("utterance", audio, content_type or "application/octet-stream")},
+        )
+    except httpx.HTTPError as exc:
+        raise TTSError(502, f"ElevenLabs unreachable: {type(exc).__name__}") from exc
     if response.status_code >= 400:
         raise TTSError(
             response.status_code, _describe_elevenlabs_error(response.status_code, response.content)
