@@ -1,0 +1,25 @@
+[project]
+name = "speechless-api"
+version = "0.1.0"
+description = "Speechless backend: holds API keys and proxies text-to-speech."
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=2.3.0",
+    "edge-tts>=7.3.1",
+    "fastapi[standard]>=0.162.0",
+    "httpx>=0.28.1",
+    "python-dotenv>=1.2.4",
+    "symspellpy>=6.10.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.1,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

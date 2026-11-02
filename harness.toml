@@ -1,0 +1,7 @@
+[dev]
+start = "./start-dev"      # API :8000 + Vite :5173 together
+ports = ["API_PORT", "WEB_PORT"]
+
+[ports.vars]
+API_PORT = 8000
+WEB_PORT = 5173

@@ -20,8 +20,10 @@ face-to-face conversation:
   - ElevenLabs text-to-speech (streaming audio back to the client).
   - Speech-to-text for the other party (ElevenLabs Scribe or browser Web Speech API
     as the zero-cost fallback).
-  - LLM for quick-reply suggestions (Claude, cheap/fast model) with the last few turns
-    as context.
+  - LLM for quick-reply suggestions: an OpenAI-compatible chat-completions endpoint
+    (currently an Azure AI Foundry `gpt-6-luna` deployment with reasoning off; latency
+    matters more than accuracy because the human picks the reply) with the last few
+    turns as context.
 - No database for MVP: phrasebook and history live in `localStorage`.
 
 ## Milestones
@@ -38,5 +40,8 @@ face-to-face conversation:
 
 ## Secrets
 
-`ELEVENLABS_API_KEY` and `ANTHROPIC_API_KEY` live in an ignored `.env` (see
-`.env.example`); they never reach the browser.
+The ElevenLabs key is the user's own: entered in the app's Settings screen, kept in the
+phone's `localStorage`, sent to the Speechless server per request and never stored there.
+The server can also carry a default key in an ignored `.env` (see `.env.example`).
+The quick-reply LLM key (`LLM_API_KEY`, any OpenAI-compatible endpoint such as Azure AI
+Foundry) is server-side only for now; an in-app override can come later.
