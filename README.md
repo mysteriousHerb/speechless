@@ -59,6 +59,9 @@ call app if words get clipped.
   Chrome's share dialog; pick "Entire screen" and tick "Also share system audio". The
   app cuts the audio into utterances and sends each to Scribe (`POST /api/transcribe`,
   same key handling as speech). Your own voice is muted out while it plays.
+  Chrome shows its "sharing" bar for as long as Listen is on, but the screen is never
+  recorded: the video track is stopped the moment sharing starts and only the audio
+  of someone speaking leaves the computer, for transcription.
 
 Both ElevenLabs modes need an ElevenLabs key and cost Scribe minutes. The browser
 cannot hear a call on phones or Safari; use a computer with Chrome or Edge.

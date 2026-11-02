@@ -335,7 +335,15 @@ export default function App() {
         {status.kind === 'tidying' && <span>Checking spelling…</span>}
         {status.kind === 'speaking' && <span>Speaking: “{status.text}”</span>}
         {status.kind === 'error' && <span className="error">{status.message}</span>}
-        {status.kind === 'idle' && listening && <span>{thinking ? 'Thinking of replies…' : 'Listening…'}</span>}
+        {status.kind === 'idle' && listening && (
+          <span>
+            {thinking
+              ? 'Thinking of replies…'
+              : settings.listenSource === 'system'
+                ? 'Listening to the call… (screen is not recorded, only speech is transcribed)'
+                : 'Listening…'}
+          </span>
+        )}
         {status.kind === 'idle' && !listening && !hasLlm && turns.some((t) => t.speaker === 'them') && (
           <span>No reply AI configured on the server.</span>
         )}

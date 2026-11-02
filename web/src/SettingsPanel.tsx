@@ -486,7 +486,7 @@ export default function SettingsPanel({ settings, serverHasKey, appUpdate, onCha
                 {settings.listenSource === 'microphone' &&
                   'Each thing they say is sent to ElevenLabs Scribe to transcribe (needs an ElevenLabs key).'}
                 {settings.listenSource === 'system' &&
-                  'When you tap Listen, Chrome asks what to share: choose “Entire screen” and tick “Also share system audio”. The other side of the call is then transcribed by ElevenLabs Scribe (needs an ElevenLabs key). Your own voice is ignored while it plays.'}
+                  'When you tap Listen, Chrome asks what to share: choose “Entire screen” and tick “Also share system audio”. The other side of the call is then transcribed by ElevenLabs Scribe (needs an ElevenLabs key). Your own voice is ignored while it plays. Chrome will say the screen is being shared, but the app never looks at it: the video is dropped the instant sharing starts, and the only thing that leaves this computer is the audio of someone speaking, sent for transcription.'}
                 {settings.listenSource !== 'browser' &&
                   !(settings.elevenLabsKey.trim() || serverHasKey) &&
                   ' No ElevenLabs key is set yet: add one on the Voice tab.'}
