@@ -20,8 +20,9 @@ face-to-face conversation:
   - ElevenLabs text-to-speech (streaming audio back to the client).
   - Speech-to-text for the other party (ElevenLabs Scribe or browser Web Speech API
     as the zero-cost fallback).
-  - LLM for quick-reply suggestions (Claude, cheap/fast model) with the last few turns
-    as context.
+  - LLM for quick-reply suggestions: Anthropic (default `claude-haiku-5-5`) or any
+    OpenAI-compatible chat-completions endpoint, reasoning off; latency matters more
+    than accuracy because the human picks the reply. The last few turns are the context.
 - No database for MVP: phrasebook and history live in `localStorage`.
 
 ## Milestones
@@ -38,5 +39,8 @@ face-to-face conversation:
 
 ## Secrets
 
-`ELEVENLABS_API_KEY` and `ANTHROPIC_API_KEY` live in an ignored `.env` (see
-`.env.example`); they never reach the browser.
+The ElevenLabs key is the user's own: entered in the app's Settings screen, kept in the
+phone's `localStorage`, sent to the Speechless server per request and never stored there.
+The server can also carry a default key in an ignored `.env` (see `.env.example`).
+The LLM key (`ANTHROPIC_API_KEY`, or `LLM_API_KEY` for an OpenAI-compatible endpoint)
+is server-side only for now; an in-app override can come later.
