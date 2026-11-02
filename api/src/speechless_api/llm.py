@@ -1,4 +1,4 @@
-"""Quick-reply suggestions from an LLM.
+"""Quick-reply suggestions and pre-speech typo fixing from an LLM.
 
 Two providers, picked by `Settings.llm_provider`: Anthropic via the official SDK (the
 default when `ANTHROPIC_API_KEY` is set), or any OpenAI-compatible chat-completions
@@ -8,6 +8,7 @@ Tuned for latency: reasoning off, tiny output, structured JSON so we never parse
 
 from __future__ import annotations
 
+import difflib
 import json
 import re
 from typing import Literal, TypedDict
@@ -65,6 +66,31 @@ ANTHROPIC_REPLY_SCHEMA = {
     "additionalProperties": False,
 }
 
+TIDY_SYSTEM_PROMPT = """\
+You clean up a message that a person typed quickly (often on a laptop keyboard) just before a
+text-to-speech voice reads it out loud for them. Fix ONLY what would make it sound wrong when
+spoken: typos, swapped or doubled letters, missing or stray spaces, obvious wrong-word slips
+("hwo are we doing" -> "how are we doing", "thigns" -> "things", "firhg" -> "right" when the
+sentence makes that obvious).
+Rules:
+- Keep the person's words, meaning, tone, slang, and sentence structure. Do not rephrase,
+  shorten, expand, formalise, or add punctuation beyond what is needed to read naturally.
+- The person uses abbreviations, acronyms and project names that are NOT typos: anything in
+  ALL CAPS (FSGEN, NHS, PR), and every word in the "known words" list below. Leave those
+  exactly as typed, and leave names and numbers alone too.
+- Only change a word when it is clearly a slip and the intended word is obvious from the
+  sentence. When unsure, leave it as typed.
+- If the text is already fine, return it unchanged.
+Return ONLY JSON: {"text": "..."}"""
+
+TIDY_SCHEMA = {
+    "type": "object",
+    "properties": {"text": {"type": "string"}},
+    "required": ["text"],
+    "additionalProperties": False,
+}
+
+
 def _messages(turns: list[Turn], count: int) -> list[dict[str, str]]:
     recent = turns[-MAX_TURNS:]
     transcript = "\n".join(f'{t["speaker"]}: {t["text"].strip()}' for t in recent if t["text"].strip())
@@ -95,6 +121,34 @@ async def suggest_replies(
         max_tokens=300,
     )
     return _parse_replies(content, count)
+
+
+async def tidy_text(
+    client: httpx.AsyncClient,
+    settings: Settings,
+    text: str,
+    keep: list[str] | None = None,
+    anthropic_client: anthropic.AsyncAnthropic | None = None,
+) -> str:
+    """Fix typos in `text` before it is spoken. `keep` lists the person's own abbreviations
+    and names that must never be "corrected". Returns the input when there is nothing to fix."""
+    text = text.strip()
+    system = TIDY_SYSTEM_PROMPT
+    if keep:
+        system += "\n\nKnown words (never change): " + ", ".join(keep)
+    content = await _complete(
+        client,
+        settings,
+        anthropic_client,
+        system=system,
+        user=text,
+        schema=TIDY_SCHEMA,
+        anthropic_schema=TIDY_SCHEMA,
+        schema_name="tidy_text",
+        # Output is roughly the input; cap generously but keep it bounded.
+        max_tokens=max(64, min(1200, len(text) * 2)),
+    )
+    return _parse_tidy(content, text)
 
 
 async def _complete(
@@ -241,3 +295,40 @@ def _parse_replies(content: str, count: int) -> list[str]:
     if not out:
         raise LLMError(502, f"LLM returned no usable replies ({content[:200]!r})")
     return out[:count]
+
+
+def _parse_tidy(content: str, original: str) -> str:
+    text = content.strip()
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text)
+    fixed: str | None = None
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict) and isinstance(parsed.get("text"), str):
+            fixed = parsed["text"]
+        elif isinstance(parsed, str):
+            fixed = parsed
+    except json.JSONDecodeError:
+        # The model answered in prose; take it as-is only if it is a single line.
+        fixed = text.strip('"') if "\n" not in text else None
+    fixed = (fixed or "").strip()
+    if not fixed:
+        return original
+    # A fix far longer than the input, or one that swapped out most of the words, means
+    # the model started rewriting. Speaking what the person typed beats speaking
+    # something they did not.
+    if len(fixed) > len(original) * 2 + 20 or _rewrote(original, fixed):
+        return original
+    return fixed
+
+
+def _rewrote(original: str, fixed: str) -> bool:
+    """True when `fixed` is a paraphrase rather than a typo fix: the word count moved a
+    lot, or too few of the typed words survive (a typo fix keeps a near-identical word)."""
+    before = re.findall(r"[\w']+", original.lower())
+    after = re.findall(r"[\w']+", fixed.lower())
+    if not before:
+        return False
+    if abs(len(before) - len(after)) > max(1, len(before) // 4):
+        return True
+    kept = sum(1 for w in before if w in after or difflib.get_close_matches(w, after, n=1, cutoff=0.6))
+    return kept < len(before) * 0.6

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import SettingsPanel from './SettingsPanel'
-import { clearHistory, loadHistory, pushHistory } from './history'
 import { Listener, listeningSupported, type AnyListener } from './listen'
 import { ServerListener, microphoneCaptureSupported, systemCaptureSupported } from './capture'
 import { effectiveBackend, loadSettings, saveSettings, type Settings } from './settings'
@@ -17,10 +16,11 @@ import {
 import { FALLBACK_REPLIES, fetchSuggestions, type Turn } from './suggest'
 import { tidyText } from './tidy'
 import { useAppUpdate } from './update'
+import { GearIcon, Logo, MicIcon, PencilIcon, PlayIcon, StopIcon } from './icons'
 
 const BACKEND_LABEL: Record<TtsBackend | 'none', string> = {
-  elevenlabs: 'ElevenLabs voice',
-  edge: 'Microsoft voice',
+  elevenlabs: 'ElevenLabs',
+  edge: 'Microsoft',
   browser: 'Browser voice',
   none: 'Browser voice',
 }
@@ -33,7 +33,6 @@ type Status =
 
 export default function App() {
   const [text, setText] = useState('')
-  const [history, setHistory] = useState<string[]>(() => loadHistory())
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const [settings, setSettings] = useState<Settings>(() => loadSettings())
   const [serverHasKey, setServerHasKey] = useState(false)
@@ -111,13 +110,12 @@ export default function App() {
     if (!trimmed) return
     unlockAudio() // must run synchronously inside the gesture
     const gen = ++sayGen.current
-    if (typed && settings.fixTypos) {
+    if (typed && settings.fixTypos && hasLlm) {
       setStatus({ kind: 'tidying', text: trimmed })
       trimmed = (await tidyText(trimmed, settings)).text
       if (sayGen.current !== gen) return // stopped while checking
     }
     if (!replay) {
-      setHistory((h) => pushHistory(h, trimmed))
       addTurn({ speaker: 'me', text: trimmed })
       setSuggestions([])
       turn = turnsRef.current.length - 1
@@ -195,9 +193,11 @@ export default function App() {
     setSuggestions([])
   }
 
-  const last = history[0]
+  const last = [...turns].reverse().find((t) => t.speaker === 'me')?.text
   const speaking = status.kind === 'speaking' || status.kind === 'tidying'
-  const badge = BACKEND_LABEL[lastUsed ?? effectiveBackend(settings, serverHasKey)]
+  const backendInUse = lastUsed ?? effectiveBackend(settings, serverHasKey)
+  const badge = BACKEND_LABEL[backendInUse]
+  const usingBrowserVoice = backendInUse === 'browser' || backendInUse === 'none'
   const canListen = useMemo(
     () =>
       settings.listenSource === 'browser'
@@ -220,15 +220,12 @@ export default function App() {
     return () => clearTimeout(t)
   }, [speaking])
 
-  // Chips: LLM suggestions first (or fixed fallbacks while listening), then recents.
-  const chips = useMemo(() => {
-    const base = suggestions.length > 0 ? suggestions : listening ? FALLBACK_REPLIES : []
-    const recents = history.filter((h) => !base.includes(h)).slice(0, 8)
-    return [
-      ...base.map((t) => ({ text: t, kind: 'suggestion' as const })),
-      ...recents.map((t) => ({ text: t, kind: 'recent' as const })),
-    ]
-  }, [suggestions, listening, history])
+  // Chips: LLM suggestions, or fixed fallbacks while listening. Past phrases live in the
+  // feed itself (each bubble has replay and edit), so nothing else is stacked here.
+  const chips = useMemo(
+    () => (suggestions.length > 0 ? suggestions : listening ? FALLBACK_REPLIES : []),
+    [suggestions, listening],
+  )
 
   if (showSettings) {
     return (
@@ -236,6 +233,7 @@ export default function App() {
         <SettingsPanel
           settings={settings}
           serverHasKey={serverHasKey}
+          hasLlm={hasLlm}
           appUpdate={appUpdate}
           onChange={updateSettings}
           onClose={() => setShowSettings(false)}
@@ -247,10 +245,18 @@ export default function App() {
   return (
     <div className="app">
       <header className="top">
-        <h1>Speechless</h1>
-        <button type="button" className="link" onClick={() => setShowSettings(true)} aria-label="Settings">
-          {badge} · Settings
-        </button>
+        <div className="brand">
+          <Logo />
+          <h1>Speechless</h1>
+        </div>
+        <div className="top-actions">
+          <span className={`badge${usingBrowserVoice ? ' fallback' : ''}`} title="Voice in use">
+            {badge}
+          </span>
+          <button type="button" className="icon-button" onClick={() => setShowSettings(true)} aria-label="Settings">
+            <GearIcon />
+          </button>
+        </div>
       </header>
 
       {appUpdate.needRefresh && (
@@ -264,17 +270,20 @@ export default function App() {
 
       <main className="feed" ref={feedRef} aria-label="Conversation">
         {turns.length === 0 && !interim ? (
-          <p className="empty">
-            Type below and press <b>Speak</b>.
+          <div className="empty">
+            <Logo />
+            <h2>Say it out loud</h2>
+            <p>
+              Type below and press <b>Speak</b>. Your phone says it in your chosen voice.
+            </p>
             {canListen ? (
-              <>
-                {' '}
-                Tap <b>Listen</b> so the phone hears the other person and offers quick replies.
-              </>
+              <p>
+                Tap <b>Listen</b> and it hears the other person, then offers quick replies.
+              </p>
             ) : (
-              ' Listening to the other person is not supported in this browser.'
+              <p className="tip">Listening to the other person is not supported in this browser.</p>
             )}
-          </p>
+          </div>
         ) : (
           <ul>
             {turns.map((t, i) => {
@@ -282,23 +291,48 @@ export default function App() {
               return (
                 <li key={i} className={`turn ${t.speaker}`}>
                   {t.speaker === 'me' ? (
-                    <button
-                      type="button"
-                      className={`bubble me${playing ? ' playing' : ''}`}
-                      onClick={() => (playing ? stop() : void say(t.text, { replay: true, turn: i }))}
-                      disabled={speaking && !playing}
-                      aria-label={playing ? `Stop: ${t.text}` : `Say again: ${t.text}`}
-                      aria-pressed={playing}
-                    >
-                      {playing && (
-                        <span className="playing-icon" aria-hidden="true">
-                          <i />
-                          <i />
-                          <i />
-                        </span>
-                      )}
-                      {t.text}
-                    </button>
+                    <>
+                      <span className="turn-actions">
+                        <button
+                          type="button"
+                          className="turn-action"
+                          onClick={() => {
+                            setText(t.text)
+                            inputRef.current?.focus()
+                          }}
+                          aria-label={`Edit: ${t.text}`}
+                        >
+                          <PencilIcon />
+                        </button>
+                        <button
+                          type="button"
+                          className={`turn-action${playing ? ' on' : ''}`}
+                          onClick={() => (playing ? stop() : void say(t.text, { replay: true, turn: i }))}
+                          disabled={speaking && !playing}
+                          aria-label={playing ? `Stop: ${t.text}` : `Say again: ${t.text}`}
+                          aria-pressed={playing}
+                        >
+                          {playing ? <StopIcon /> : <PlayIcon />}
+                        </button>
+                      </span>
+                      <button
+                        type="button"
+                        className={`bubble me${playing ? ' playing' : ''}`}
+                        onClick={() => (playing ? stop() : void say(t.text, { replay: true, turn: i }))}
+                        disabled={speaking && !playing}
+                        aria-label={playing ? `Stop: ${t.text}` : `Say again: ${t.text}`}
+                        aria-pressed={playing}
+                      >
+                        {playing && (
+                          <span className="playing-icon" aria-hidden="true">
+                            <i />
+                            <i />
+                            <i />
+                          </span>
+                        )}
+                        {t.text}
+                      </button>
+                    </>
                   ) : (
                     <span className="bubble them">{t.text}</span>
                   )}
@@ -313,21 +347,11 @@ export default function App() {
           </ul>
         )}
         {turns.length > 0 && (
-          <button type="button" className="link" onClick={clearConversation}>
-            Clear conversation
-          </button>
-        )}
-        {history.length > 0 && turns.length === 0 && (
-          <button
-            type="button"
-            className="link"
-            onClick={() => {
-              clearHistory()
-              setHistory([])
-            }}
-          >
-            Clear recent phrases
-          </button>
+          <div className="feed-actions">
+            <button type="button" className="link" onClick={clearConversation}>
+              Clear conversation
+            </button>
+          </div>
         )}
       </main>
 
@@ -336,7 +360,7 @@ export default function App() {
         {status.kind === 'speaking' && <span>Speaking: “{status.text}”</span>}
         {status.kind === 'error' && <span className="error">{status.message}</span>}
         {status.kind === 'idle' && listening && (
-          <span>
+          <span className="live">
             {thinking
               ? 'Thinking of replies…'
               : settings.listenSource === 'system'
@@ -352,20 +376,20 @@ export default function App() {
       {chips.length > 0 && (
         <div className="chips" aria-label="Quick replies">
           {chips.map((c) => (
-            <span key={`${c.kind}:${c.text}`} className={`chip ${c.kind}`}>
-              <button type="button" className="chip-say" onClick={() => void say(c.text)} disabled={speaking}>
-                {c.text}
+            <span key={c} className="chip suggestion">
+              <button type="button" className="chip-say" onClick={() => void say(c)} disabled={speaking}>
+                {c}
               </button>
               <button
                 type="button"
                 className="chip-edit"
-                aria-label={`Edit "${c.text}" before speaking`}
+                aria-label={`Edit "${c}" before speaking`}
                 onClick={() => {
-                  setText(c.text)
+                  setText(c)
                   inputRef.current?.focus()
                 }}
               >
-                ✎
+                <PencilIcon />
               </button>
             </span>
           ))}
@@ -394,7 +418,8 @@ export default function App() {
               onClick={toggleListening}
               aria-pressed={listening}
             >
-              {listening ? '● Listening' : 'Listen'}
+              {listening ? <span className="dot" /> : <MicIcon />}
+              {listening ? 'Listening' : 'Listen'}
             </button>
           )}
           <button

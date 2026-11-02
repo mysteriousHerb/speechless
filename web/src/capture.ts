@@ -9,6 +9,7 @@
 
 import type { ListenerCallbacks } from './listen'
 import type { Settings } from './settings'
+import { apiFetch } from './api'
 
 export type CaptureSource = 'microphone' | 'system'
 
@@ -250,7 +251,7 @@ export class ServerListener {
     if (key) headers['X-ElevenLabs-Key'] = key
     let res: Response
     try {
-      res = await fetch('/api/transcribe', { method: 'POST', headers, body: form })
+      res = await apiFetch('/api/transcribe', { method: 'POST', headers, body: form })
     } catch {
       this.cb.onError('Could not reach the server to transcribe.')
       return

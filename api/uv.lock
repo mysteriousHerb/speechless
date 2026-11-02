@@ -1976,7 +1976,6 @@ dependencies = [
     { name = "fastapi", extra = ["standard"] },
     { name = "httpx" },
     { name = "python-dotenv" },
-    { name = "symspellpy" },
 ]
 
 [package.dev-dependencies]
@@ -1991,7 +1990,6 @@ requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.162.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "python-dotenv", specifier = ">=1.2.4" },
-    { name = "symspellpy", specifier = ">=6.10.1" },
 ]
 
 [package.metadata.requires-dev]
@@ -2008,15 +2006,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/48/bb/3d8757f21e9a53d9035c9eb039a777047139a16bfdbedfc7a58241c3d914/starlette-1.10.0.tar.gz", hash = "sha256:b8399098d4c1e3522734f7235dc79b1fc967f96cf139c81e0fa30479e0685f9b", size = 2734356, upload-time = "2026-10-24T15:04:12.342Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/88/2e/947cfe02def9371c07cd5bf5b6b61c829e9aecb9904db02a66cfafbc1eec/starlette-1.10.0-py3-none-any.whl", hash = "sha256:478c0ab3b4ced6e82719849c118fa406f0278a3499c1a898cd15cd31bdc38ce4", size = 80571, upload-time = "2026-10-24T15:04:10.371Z" },
-]
-
-[[package]]
-name = "symspellpy"
-version = "6.10.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f6/b0/ebc2743e5411d63fdafe665ca91412caf59b3d98f39a192263d6ffdf205a/symspellpy-6.10.1.tar.gz", hash = "sha256:391506047a292c4990001ae642a3d896bbd7dfd2a4e06e62f89224ed8b23d24e", size = 2617790, upload-time = "2026-10-27T04:16:30.858Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c2/fa/7cf9f79a50d49c60d64be552a06291e6a8adcff733518575017622fbc80f/symspellpy-6.10.1-py3-none-any.whl", hash = "sha256:a653a6c125839a21ada87c3e044d690fc3b39872efbd7b7270db3de9471315e1", size = 2612466, upload-time = "2026-10-27T04:16:29.073Z" },
 ]
 
 [[package]]

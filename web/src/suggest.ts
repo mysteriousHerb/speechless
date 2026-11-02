@@ -1,4 +1,5 @@
 import type { Settings } from './settings'
+import { apiFetch } from './api'
 
 export type Turn = { speaker: 'them' | 'me'; text: string }
 
@@ -16,7 +17,7 @@ export async function fetchSuggestions(turns: Turn[], _settings: Settings, count
   const controller = new AbortController()
   inflight = controller
   try {
-    const res = await fetch('/api/suggest', {
+    const res = await apiFetch('/api/suggest', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ turns: turns.slice(-12), count }),

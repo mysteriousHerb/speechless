@@ -51,7 +51,7 @@ export default defineConfig({
   server: {
     host: true, // reachable from a phone on the same network / tailnet
     port: 5173,
-    allowedHosts: ['.ts.net'],
+    allowedHosts: ['.ts.net'], // Tailscale MagicDNS names, so the dev server opens from a phone on the tailnet
     proxy: { '/api': 'http://localhost:8000' },
   },
 })

@@ -11,3 +11,6 @@ __pycache__/
 # harness mirror (generated)
 .agents/
 AGENTS.md
+
+# Claude Code local config (private plugin marketplace)
+.claude/

@@ -26,9 +26,9 @@ export type Settings = {
   /** Microphone (MediaDeviceInfo.deviceId); empty means the system default. */
   inputDeviceId: string
   listenSource: ListenSource
-  /** Run typed messages through the server's spelling pass before speaking. */
+  /** Run typed messages through the LLM to fix typos before speaking (needs a server LLM). */
   fixTypos: boolean
-  /** Words the spelling pass must never change (names, slang), one per line or comma-separated. */
+  /** Abbreviations and names the typo fix must never change, comma- or space-separated. */
   keepWords: string
   /** Speaking rate multiplier, 0.7 (slow) to 1.2 (fast); 1 is the voice's natural pace. */
   speed: number

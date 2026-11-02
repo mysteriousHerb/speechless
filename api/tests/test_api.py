@@ -490,44 +490,84 @@ def test_suggest_rejects_empty_or_bad_transcript(client):
 
 # --- typo fixing before speech ---------------------------------------------------
 
-
-def tidy(client, text, **extra):
-    return client.post("/api/tidy", json={"text": text, **extra}).json()
+TIDY_OK = {"choices": [{"message": {"content": '{"text": "how are we doing with things like this"}'}}]}
 
 
-def test_tidy_fixes_fat_finger_typos_without_an_llm(client):
-    app.state.settings = make_settings(llm=False)
-    assert tidy(client, "hwllo, are we doing with thigns liek this?") == {
-        "text": "hello, are we doing with things like this?",
-        "changed": True,
-    }
-    assert tidy(client, "I will definately be tehre. Teh recieve adn beleive")["text"] == (
-        "I will definitely be there. The receive and believe"
-    )
-    assert client.calls == []  # no model involved
+def test_tidy_fixes_typos_via_openai_compatible_endpoint(client):
+    client.state["llm"] = [(200, TIDY_OK)]
+    res = client.post("/api/tidy", json={"text": "hwo are we doing with thigns liek this"})
+    assert res.status_code == 200
+    assert res.json() == {"text": "how are we doing with things like this", "changed": True}
+
+    [req] = client.calls
+    payload = json.loads(req.content)
+    assert payload["reasoning_effort"] == "none"
+    assert payload["response_format"]["json_schema"]["name"] == "tidy_text"
+    system = payload["messages"][0]["content"]
+    assert "Fix ONLY" in system
+    assert "ALL CAPS" in system  # acronyms are declared not-typos
+    assert "Known words" not in system  # no keep list sent
+    assert payload["messages"][1] == {"role": "user", "content": "hwo are we doing with thigns liek this"}
+
+
+def test_tidy_tells_the_model_about_the_persons_own_words(client):
+    client.state["llm"] = [(200, {"choices": [{"message": {"content": '{"text": "the FSGEN stuff is firhg"}'}}]})]
+    res = client.post("/api/tidy", json={"text": "the FSGEN stuff is firhg", "keep": [" firhg ", "", "Acme"]})
+    assert res.json() == {"text": "the FSGEN stuff is firhg", "changed": False}
+    [req] = client.calls
+    system = json.loads(req.content)["messages"][0]["content"]
+    assert system.endswith("Known words (never change): firhg, Acme")
 
 
 def test_tidy_reports_unchanged_text(client):
-    assert tidy(client, "all good here") == {"text": "all good here", "changed": False}
+    client.state["llm"] = [(200, {"choices": [{"message": {"content": '{"text": "all good here"}'}}]})]
+    res = client.post("/api/tidy", json={"text": "all good here"})
+    assert res.json() == {"text": "all good here", "changed": False}
 
 
-def test_tidy_leaves_names_slang_numbers_and_acronyms_alone(client):
-    kept = "i dont think so lol, im at Herbz place at 3pm with the NHS ppl and it's wierd"
-    assert tidy(client, kept)["text"] == kept.replace("wierd", "weird")
-    # Capitalised mid-sentence words are treated as names; sentence-initial ones are fixed.
-    assert tidy(client, "Hwllo Londno")["text"] == "Hello Londno"
+def test_tidy_keeps_original_when_model_rewrites_or_returns_junk(client):
+    def answer(text):
+        client.state["llm"] = [(200, {"choices": [{"message": {"content": json.dumps({"text": text})}}]})]
+        return client.post("/api/tidy", json={"text": "hi tehre, can we push the meeting to tmrw pls"}).json()["text"]
+
+    original = "hi tehre, can we push the meeting to tmrw pls"
+    # Far longer than the input: the model started rewriting; speak what was typed.
+    assert answer("Hello there! " * 10) == original
+    # Same length but most words swapped: a paraphrase, not a typo fix.
+    assert answer("hello, could we move our call to tomorrow please") == original
+    # Dropped half the words: the model summarised.
+    assert answer("push the meeting to tomorrow") == original
+    assert answer("") == original
+    # A genuine slip-only fix goes through.
+    assert answer("hi there, can we push the meeting to tmrw pls") == "hi there, can we push the meeting to tmrw pls"
+
+    # Plain prose answer (structured output ignored) is still usable.
+    client.state["llm"] = [(200, {"choices": [{"message": {"content": '"hi there"'}}]})]
+    assert client.post("/api/tidy", json={"text": "hi tehre"}).json() == {"text": "hi there", "changed": True}
 
 
-def test_tidy_respects_the_keep_list(client):
-    assert tidy(client, "ask tehre for the reciept")["text"] == "ask there for the receipt"
-    assert tidy(client, "ask tehre for the reciept", keep=["reciept", " TEHRE "])["text"] == (
-        "ask tehre for the reciept"
+def test_tidy_calls_anthropic_with_thinking_off(client):
+    fake = use_anthropic(client)
+    fake.response = SimpleNamespace(
+        stop_reason="end_turn", content=[SimpleNamespace(type="text", text='{"text": "how are we doing"}')]
     )
+    res = client.post("/api/tidy", json={"text": "hwo are we doing"})
+    assert res.json() == {"text": "how are we doing", "changed": True}
+    [kwargs] = fake.calls
+    assert kwargs["thinking"] == {"type": "disabled"}
+    assert kwargs["output_config"]["format"]["schema"]["properties"] == {"text": {"type": "string"}}
+    assert kwargs["messages"] == [{"role": "user", "content": "hwo are we doing"}]
+    assert kwargs["max_tokens"] >= 64
 
 
-def test_tidy_never_rephrases_or_touches_spacing(client):
-    original = "ok   so...   whta   time?!"
-    assert tidy(client, original)["text"] == "ok   so...   what   time?!"
+def test_tidy_without_llm_is_503_and_failures_are_502(client):
+    client.state["llm"] = [(500, b"boom")]
+    assert client.post("/api/tidy", json={"text": "hwo"}).status_code == 502
+
+    app.state.settings = make_settings(llm=False)
+    res = client.post("/api/tidy", json={"text": "hwo"})
+    assert res.status_code == 503
+    assert res.json()["detail"] == "llm_unconfigured"
 
 
 def test_tidy_rejects_bad_input(client):

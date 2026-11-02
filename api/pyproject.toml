@@ -9,7 +9,6 @@ dependencies = [
     "fastapi[standard]>=0.162.0",
     "httpx>=0.28.1",
     "python-dotenv>=1.2.4",
-    "symspellpy>=6.10.1",
 ]
 
 [build-system]

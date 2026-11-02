@@ -16,13 +16,14 @@ Product and milestones: `PLAN.md`. How to run: `README.md`.
   never as a 200 with no audio.
 - The ElevenLabs key is user-supplied from the app's Settings screen (`web/src/settings.ts`, localStorage)
   and sent per request as `X-ElevenLabs-Key`; the server never stores or logs it. `.env` holds
-  optional server defaults. The LLM (`api/src/speechless_api/llm.py`, quick replies only) is server-side only: Anthropic via the
+  optional server defaults. The LLM (`api/src/speechless_api/llm.py`; quick replies and the `/api/tidy` typo fix run before speaking typed text) is server-side only: Anthropic via the
   official SDK when `ANTHROPIC_API_KEY` is set (default model `claude-haiku-5-5`), or an
   OpenAI-compatible chat-completions endpoint when `LLM_BASE_URL` is set. Latency over accuracy: reasoning off, tiny output, no tools. The browser never talks
   to ElevenLabs / Anthropic directly except to play ElevenLabs' public preview clips.
-- The pre-speech typo fix (`/api/tidy`, `api/src/speechless_api/tidy.py`) is dictionary-based
-  (`symspellpy`), not an LLM: word-by-word, bounded edit distance, never rephrases. Known gap:
-  real-word slips ("form"/"from") are not caught, and "hwo" becomes "who". Speaking speed
-  (0.7 to 1.2) travels in the speak request; volume is a client-side gain node in `web/src/speech.ts`.
+- The typo fix is LLM-only (a dictionary checker was tried and dropped: it cannot fix scrambled
+  words like "firhg" -> "right"). The prompt is told ALL-CAPS tokens and the person's own
+  `keepWords` (Settings, sent as `keep`) are not typos, and `_parse_tidy` rejects paraphrases.
+  Speaking speed (0.7 to 1.2) travels in the speak request; volume is a client-side gain node
+  in `web/src/speech.ts`.
 - Audio on mobile must start from a user gesture: `web/src/speech.ts` resumes one shared
   `AudioContext` synchronously in the tap handler before any `await`. Keep it that way.

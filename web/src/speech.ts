@@ -8,6 +8,7 @@
  */
 
 import type { Settings } from './settings'
+import { apiFetch } from './api'
 
 export type TtsBackend = 'elevenlabs' | 'edge' | 'browser'
 
@@ -155,7 +156,7 @@ export async function speak(text: string, settings: Settings, opts: SpeakOptions
 
   let res: Response
   try {
-    res = await fetch('/api/speak', {
+    res = await apiFetch('/api/speak', {
       method: 'POST',
       headers: headersFor(settings),
       body: JSON.stringify({ text, backend, voice_id: voiceId || undefined, speed }),
@@ -244,7 +245,7 @@ function speakWithBrowser(text: string, settings: Settings): Promise<void> {
 
 export async function fetchHealth(): Promise<ServerHealth> {
   try {
-    const res = await fetch('/api/health')
+    const res = await apiFetch('/api/health')
     const body = (await res.json()) as { tts?: string; server_has_elevenlabs_key?: boolean; llm?: boolean }
     const tts = body.tts === 'elevenlabs' || body.tts === 'edge' ? body.tts : 'none'
     return { tts, serverHasKey: Boolean(body.server_has_elevenlabs_key), llm: Boolean(body.llm) }
@@ -254,7 +255,7 @@ export async function fetchHealth(): Promise<ServerHealth> {
 }
 
 export async function fetchVoices(backend: 'elevenlabs' | 'edge', settings: Settings): Promise<Voice[]> {
-  const res = await fetch(`/api/voices?backend=${backend}`, { headers: headersFor(settings) })
+  const res = await apiFetch(`/api/voices?backend=${backend}`, { headers: headersFor(settings) })
   if (!res.ok) {
     const detail = await res
       .json()

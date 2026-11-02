@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated, Literal
@@ -16,8 +15,7 @@ from pydantic import BaseModel, Field
 
 from .config import MAX_TEXT_CHARS, WEB_DIST, BackendMode, Settings, load_settings, resolve_backend
 from .stt import MAX_AUDIO_BYTES, transcribe_elevenlabs
-from .llm import DEFAULT_REPLIES, LLMError, MAX_REPLIES, Turn, suggest_replies
-from . import tidy as tidy_module
+from .llm import DEFAULT_REPLIES, LLMError, MAX_REPLIES, Turn, suggest_replies, tidy_text
 from .tts import (
     MAX_SPEED,
     MIN_SPEED,
@@ -34,8 +32,6 @@ async def lifespan(app: FastAPI):
     app.state.settings = load_settings()
     app.state.http = httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0))
     app.state.anthropic = make_anthropic_client(app.state.settings)
-    # The spelling dictionary takes about a second to load; do it before the first message.
-    await asyncio.to_thread(tidy_module.load)
     try:
         yield
     finally:
@@ -190,18 +186,24 @@ async def suggest(body: SuggestRequest, settings: SettingsDep, http: HttpDep, re
 
 class TidyRequest(BaseModel):
     text: str = Field(min_length=1, max_length=MAX_TEXT_CHARS)
-    # Words the person never wants "corrected" (their name, local slang...).
+    # The person's own abbreviations and names, which must never be "corrected".
     keep: list[str] = Field(default_factory=list, max_length=200)
 
 
 @app.post("/api/tidy")
-async def tidy(body: TidyRequest):
-    """Fix typos in a typed message before it is spoken. Dictionary-based, about a
-    millisecond, never rephrases; the client speaks the raw text if this fails."""
+async def tidy(body: TidyRequest, settings: SettingsDep, http: HttpDep, request: Request):
+    """Fix typos in a typed message before it is spoken. The client speaks the raw text
+    if this fails or is slow, so errors here must stay cheap and honest (502/503)."""
+    if not settings.llm_configured:
+        raise HTTPException(status_code=503, detail="llm_unconfigured")
     text = body.text.strip()
     if not text:
         raise HTTPException(status_code=422, detail="text is empty")
-    fixed = tidy_module.tidy_text(text, keep={w.strip() for w in body.keep if w.strip()})
+    keep = [w.strip()[:60] for w in body.keep if w.strip()]
+    try:
+        fixed = await tidy_text(http, settings, text, keep=keep, anthropic_client=request.app.state.anthropic)
+    except LLMError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
     return {"text": fixed, "changed": fixed != text}
 
 

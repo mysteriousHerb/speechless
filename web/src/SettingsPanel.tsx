@@ -34,12 +34,13 @@ function speedLabel(speed: number): string {
 type Props = {
   settings: Settings
   serverHasKey: boolean
+  hasLlm: boolean
   appUpdate: AppUpdate
   onChange: (next: Settings) => void
   onClose: () => void
 }
 
-export default function SettingsPanel({ settings, serverHasKey, appUpdate, onChange, onClose }: Props) {
+export default function SettingsPanel({ settings, serverHasKey, hasLlm, appUpdate, onChange, onClose }: Props) {
   const [updateNote, setUpdateNote] = useState<string | null>(null)
   const checkForUpdate = async () => {
     setUpdateNote(null)
@@ -318,17 +319,17 @@ export default function SettingsPanel({ settings, serverHasKey, appUpdate, onCha
             ))}
           </div>
           <p className="hint">
-            Typed messages get an instant dictionary spelling pass, so the voice says “hello there”, not “hwllo tehre”.
-            It only swaps a misspelt word for the real one; it never rephrases, and leaves names, slang and anything it
-            is unsure about exactly as typed.
+            {hasLlm
+              ? 'Typed messages get a quick spelling pass so the voice says “how are we doing”, not “hwo are we doing”. Only obvious slips are fixed; your words, slang and anything in CAPITALS stay as typed. If it takes too long, the text is spoken as typed.'
+              : 'Needs the server’s quick-reply model, which is not configured right now.'}
           </p>
           <label className="field">
-            <span>Never change these words</span>
+            <span>Your abbreviations and names (never changed)</span>
             <input
               type="text"
               value={settings.keepWords}
               onChange={(e) => onChange({ ...settings, keepWords: e.target.value })}
-              placeholder="e.g. Herbz, Outrung, innit"
+              placeholder="e.g. Sam, Acme, innit"
               autoCapitalize="off"
               spellCheck={false}
             />
