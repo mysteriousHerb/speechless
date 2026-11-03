@@ -2,12 +2,12 @@
  * Speaking: our API (ElevenLabs or Microsoft Edge voices), with the browser's own
  * speech synthesis as a fallback when the server has no voice or it is failing.
  *
- * Mobile browsers only allow audio that starts from a user gesture. We keep one
- * AudioContext and resume it synchronously inside the tap handler; after that,
+ * Mobile browsers only allow audio that starts from a user gesture. We create and
+ * resume our AudioContexts synchronously inside the tap handler; after that,
  * audio decoded later (post-fetch) is allowed to play.
  */
 
-import type { Settings } from './settings'
+import { effectiveBackend, type Settings } from './settings'
 import { apiFetch } from './api'
 
 export type TtsBackend = 'elevenlabs' | 'edge' | 'browser'
@@ -16,57 +16,72 @@ export type Voice = { id: string; name: string; description: string; preview_url
 
 export type ServerHealth = { tts: 'elevenlabs' | 'edge' | 'none'; serverHasKey: boolean; llm: boolean }
 
-let audioContext: AudioContext | null = null
-// One gain stage for everything we play, so the volume slider covers every backend
-// (ElevenLabs has no volume parameter) and cached clips alike, and can boost above 1.
-let gainNode: GainNode | null = null
-let wantedGain = 1
-let currentSource: AudioBufferSourceNode | null = null
-let previewElement: HTMLAudioElement | null = null
-let wantedSinkId = ''
-// Further outputs (e.g. the person's own headphones while the main output feeds a
-// call) that mirror what we play. One AudioContext per device, keyed by device id.
-const mirrorContexts = new Map<string, AudioContext>()
-let mirrorSources: AudioBufferSourceNode[] = []
-
 type Sinkable = { setSinkId?: (id: string) => Promise<void> }
+
+/**
+ * One output per device the voice plays on ('' = system default). Each has its own
+ * AudioContext (a context has one sink) and its own gain stage, so the volume slider
+ * covers every backend (ElevenLabs has no volume parameter) and every device alike, and
+ * can boost above 1. Outputs are equal: a virtual cable into a call and the person's
+ * own headphones both get the slider.
+ */
+type Output = { ctx: AudioContext; gain: GainNode; sources: AudioBufferSourceNode[] }
+const outputs = new Map<string, Output>()
+let wantedSinkIds: string[] = ['']
+let wantedGain = 1
+let unlocked = false
+let previewElement: HTMLAudioElement | null = null
+let onOutputProblem: (message: string) => void = () => {}
 
 /** Whether this browser can send our audio to a chosen output device (Chrome / Edge; not Safari). */
 export function outputSelectionSupported(): boolean {
   return typeof (AudioContext.prototype as Sinkable).setSinkId === 'function'
 }
 
+/** Where to report an output device that could not be used (the voice then plays on the default). */
+export function setOutputProblemHandler(handler: (message: string) => void): void {
+  onOutputProblem = handler
+}
+
 /**
- * Play everything on these devices at once ([] = system default). The first is the main
- * output (volume slider applies, previews play there); the rest mirror it. Typical use:
- * a virtual audio cable so a call (Teams, Zoom...) hears the voice as a microphone, plus
- * the person's own headphones. The browser's speechSynthesis fallback cannot be routed.
+ * Play everything on these devices at once ([] = system default), all at the slider's
+ * volume. Typical use: a virtual audio cable so a call (Teams, Zoom...) hears the voice
+ * as a microphone, plus the person's own headphones. Contexts are only created once a
+ * gesture has unlocked audio (mobile browsers refuse otherwise), so before the first tap
+ * this just records the wish. The browser's speechSynthesis fallback cannot be routed.
  */
 export function setOutputDevices(deviceIds: string[]): void {
-  const [main = '', ...mirrors] = deviceIds
-  wantedSinkId = main
-  applySink(audioContext)
-  applySink(previewElement)
+  wantedSinkIds = deviceIds.length ? [...new Set(deviceIds)] : ['']
+  if (unlocked) syncOutputs()
+  applySink(previewElement, wantedSinkIds[0])
+}
 
-  for (const [id, ctx] of mirrorContexts) {
-    if (!mirrors.includes(id)) {
-      mirrorContexts.delete(id)
-      void ctx.close()
+function syncOutputs(): void {
+  for (const [id, out] of outputs) {
+    if (!wantedSinkIds.includes(id)) {
+      outputs.delete(id)
+      void out.ctx.close()
     }
   }
-  for (const id of mirrors) {
-    if (mirrorContexts.has(id)) continue
+  for (const id of wantedSinkIds) {
+    if (outputs.has(id)) continue
     const ctx = new AudioContext()
+    const gain = ctx.createGain()
+    gain.gain.value = wantedGain
+    gain.connect(ctx.destination)
     applySink(ctx, id)
-    mirrorContexts.set(id, ctx)
+    outputs.set(id, { ctx, gain, sources: [] })
   }
 }
 
-function applySink(target: object | null, sinkId = wantedSinkId): void {
+function applySink(target: object | null, sinkId: string): void {
   const sink = target as Sinkable | null
-  if (!sink || typeof sink.setSinkId !== 'function') return
-  sink.setSinkId(sinkId).catch(() => {
-    /* device unplugged or not permitted: keep playing on whatever is current */
+  if (!sink || typeof sink.setSinkId !== 'function' || !sinkId) return
+  sink.setSinkId(sinkId).catch((err: unknown) => {
+    // Device unplugged, id stale or not permitted: the audio plays on the default
+    // instead, which the person must know about (a call may now hear nothing).
+    const why = err instanceof Error && err.name ? ` (${err.name})` : ''
+    onOutputProblem(`One of the outputs ticked in Settings cannot be used${why}; playing on the system default instead.`)
   })
 }
 
@@ -87,32 +102,32 @@ export function clearClipCache(): void {
 }
 
 /**
- * Output gain for the main output: 1 is unchanged, above 1 boosts (handy when a call
- * hears the voice too quietly through a virtual cable). The headphone monitor stays at 1.
+ * Output gain on every output: 1 is unchanged, above 1 boosts (handy when a call hears
+ * the voice too quietly through a virtual cable).
  */
 export function setVolume(volume: number): void {
   wantedGain = volume
-  if (gainNode && audioContext) gainNode.gain.setValueAtTime(volume, audioContext.currentTime)
+  for (const { ctx, gain } of outputs.values()) gain.gain.setValueAtTime(volume, ctx.currentTime)
 }
 
 /** Call synchronously inside a user gesture (tap / Enter) before any awaits. */
 export function unlockAudio(): void {
-  if (!audioContext) {
-    audioContext = new AudioContext()
-    gainNode = audioContext.createGain()
-    gainNode.gain.value = wantedGain
-    gainNode.connect(audioContext.destination)
-    if (wantedSinkId) applySink(audioContext)
-  }
-  if (audioContext.state === 'suspended') void audioContext.resume()
-  for (const ctx of mirrorContexts.values()) if (ctx.state === 'suspended') void ctx.resume()
+  unlocked = true
+  syncOutputs()
+  for (const { ctx } of outputs.values()) if (ctx.state === 'suspended') void ctx.resume()
+}
+
+/** Any live context, for decoding (an AudioBuffer plays on every context alike). */
+function decoder(): AudioContext {
+  if (outputs.size === 0) unlockAudio()
+  return outputs.values().next().value!.ctx
 }
 
 export function stopSpeaking(): void {
-  currentSource?.stop()
-  currentSource = null
-  mirrorSources.forEach((s) => s.stop())
-  mirrorSources = []
+  for (const out of outputs.values()) {
+    out.sources.forEach((s) => s.stop())
+    out.sources = []
+  }
   previewElement?.pause()
   if ('speechSynthesis' in window) window.speechSynthesis.cancel()
 }
@@ -136,13 +151,29 @@ function headersFor(settings: Settings): HeadersInit {
 
 type SpeakOptions = { backend?: 'elevenlabs' | 'edge'; voiceId?: string }
 
+/**
+ * The voice to ask the server for. On 'auto' the chosen voice belongs to whichever
+ * backend auto resolves to (the same resolution Settings shows), not to no backend at all.
+ */
+export function chosenVoice(settings: Settings, serverHasKey: boolean, opts: SpeakOptions = {}): string | undefined {
+  if (opts.voiceId !== undefined) return opts.voiceId
+  const backend = opts.backend ?? settings.backend
+  const resolved = backend === 'auto' ? effectiveBackend(settings, serverHasKey) : backend
+  return resolved === 'none' ? undefined : settings.voices[resolved]
+}
+
 /** Speak `text`; resolves when playback finishes. Returns which backend spoke. */
-export async function speak(text: string, settings: Settings, opts: SpeakOptions = {}): Promise<TtsBackend> {
+export async function speak(
+  text: string,
+  settings: Settings,
+  serverHasKey: boolean,
+  opts: SpeakOptions = {},
+): Promise<TtsBackend> {
   unlockAudio()
   stopSpeaking()
 
   const backend = opts.backend ?? settings.backend
-  const voiceId = opts.voiceId ?? (backend === 'auto' ? undefined : settings.voices[backend])
+  const voiceId = chosenVoice(settings, serverHasKey, opts)
 
   const speed = settings.speed
   setVolume(settings.volume)
@@ -182,7 +213,7 @@ export async function speak(text: string, settings: Settings, opts: SpeakOptions
   }
 
   const bytes = await res.arrayBuffer()
-  const buffer = await audioContext!.decodeAudioData(bytes)
+  const buffer = await decoder().decodeAudioData(bytes)
   const used: TtsBackend = res.headers.get('x-tts-backend') === 'edge' ? 'edge' : 'elevenlabs'
   cacheClip(cacheKey, { buffer, backend: used })
   await playBuffer(buffer)
@@ -193,36 +224,29 @@ export async function speak(text: string, settings: Settings, opts: SpeakOptions
 export function playPreviewUrl(url: string): void {
   stopSpeaking()
   if (!previewElement) {
-    previewElement = new Audio()
-    if (wantedSinkId) applySink(previewElement)
+    previewElement = new Audio() // a media element has one sink: previews use the first ticked output
+    applySink(previewElement, wantedSinkIds[0])
   }
   previewElement.src = url
   void previewElement.play().catch(() => {})
 }
 
 async function playBuffer(buffer: AudioBuffer): Promise<void> {
-  const ctx = audioContext!
+  if (outputs.size === 0) unlockAudio()
+  // The same clip on every output. Each context has its own clock, so a few ms of drift
+  // between devices is normal; the first output to finish resolves (they are equal length).
   await new Promise<void>((resolve) => {
-    const source = ctx.createBufferSource()
-    source.buffer = buffer
-    source.connect(gainNode ?? ctx.destination)
-    source.onended = () => {
-      if (currentSource === source) currentSource = null
-      resolve()
+    for (const out of outputs.values()) {
+      const source = out.ctx.createBufferSource()
+      source.buffer = buffer
+      source.connect(out.gain)
+      source.onended = () => {
+        out.sources = out.sources.filter((s) => s !== source)
+        resolve()
+      }
+      out.sources.push(source)
+      source.start()
     }
-    currentSource = source
-    source.start()
-
-    // Mirror onto the other outputs (headphones...). The main output is what resolves;
-    // mirrors play alongside at unity gain and are stopped with it. Each context has its
-    // own clock, so a few ms of drift between devices is normal.
-    mirrorSources = [...mirrorContexts.values()].map((mctx) => {
-      const mirror = mctx.createBufferSource()
-      mirror.buffer = buffer
-      mirror.connect(mctx.destination)
-      mirror.start()
-      return mirror
-    })
   })
 }
 

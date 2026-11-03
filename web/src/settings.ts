@@ -21,7 +21,7 @@ export type Settings = {
   voices: Partial<Record<ServerBackend, string>>
   /** Output devices (MediaDeviceInfo.deviceId) the voice plays on, all at once: e.g. a
    * virtual cable into a call plus the person's own headphones. Empty means the system
-   * default. The first one is the "main" output the volume slider boosts. */
+   * default. The volume slider applies to all of them. */
   outputDeviceIds: string[]
   /** Microphone (MediaDeviceInfo.deviceId); empty means the system default. */
   inputDeviceId: string

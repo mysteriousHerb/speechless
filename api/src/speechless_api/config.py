@@ -91,7 +91,7 @@ def load_settings() -> Settings:
         elevenlabs_api_key=os.environ.get("ELEVENLABS_API_KEY", "").strip(),
         elevenlabs_voice_id=os.environ.get("ELEVENLABS_VOICE_ID", DEFAULT_ELEVENLABS_VOICE),
         # Flash is the low-latency model; fine for conversation.
-        elevenlabs_model_id=os.environ.get("ELEVENLABS_MODEL_ID", "eleven_flash_v2_5"),
+        elevenlabs_model_id=os.environ.get("ELEVENLABS_MODEL_ID", "eleven_v4_turbo"),
         elevenlabs_output_format=os.environ.get("ELEVENLABS_OUTPUT_FORMAT", "mp3_44100_128"),
         edge_voice=os.environ.get("EDGE_TTS_VOICE", DEFAULT_EDGE_VOICE),
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "").strip(),

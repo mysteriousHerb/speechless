@@ -1,0 +1,17 @@
+# Orca worktree hooks. Orca creates worktrees itself, so Claude Code's WorktreeCreate hook never
+# fires for them; these run the shared harness's wt_env.py instead (see the harness `worktree` skill).
+# setup: claim a slot, copy the harness.toml env files with this slot's ports, run post_up.
+# archive: run pre_down and free the slot (Orca's sidebar Delete runs this too).
+# Leave Orca's per-machine Setup/Archive Script boxes empty: if they hold anything, Orca runs
+# those and ignores this file. Set only "When to run" -> Run by default there.
+# Each line starts with scripts/sync_codex.py's NEWEST_INSTALL_EXPR verbatim (tested): it picks
+# the most recently updated harness install that still exists, honours CLAUDE_CONFIG_DIR, and
+# has no `%`, `$`, `^`, `!` or inner double quotes, so it runs unchanged in Orca's Bash runner
+# and its Windows .cmd runner.
+scripts:
+  setup: |
+    uv run --no-project --python ">=3.11" python -c "import json,os,subprocess,sys;c=os.environ.get('CLAUDE_CONFIG_DIR') or os.path.expanduser('~/.claude');f=os.path.join(c,'plugins','installed_plugins.json');r=json.load(open(f,encoding='utf-8')).get('plugins',{}).get('harness@adhd-coder',[]) if os.path.isfile(f) else [];p=next((x['installPath'] for x in sorted(r,key=lambda x:x.get('lastUpdated',''),reverse=True) if os.path.isfile(os.path.join(x['installPath'],'scripts','wt_env.py'))),None);p or sys.exit('no usable harness@adhd-coder install in '+f);sys.exit(subprocess.call([sys.executable,os.path.join(p,'scripts','wt_env.py'),'up',os.environ['ORCA_WORKTREE_PATH']]))"
+  archive: |
+    uv run --no-project --python ">=3.11" python -c "import json,os,subprocess,sys;c=os.environ.get('CLAUDE_CONFIG_DIR') or os.path.expanduser('~/.claude');f=os.path.join(c,'plugins','installed_plugins.json');r=json.load(open(f,encoding='utf-8')).get('plugins',{}).get('harness@adhd-coder',[]) if os.path.isfile(f) else [];p=next((x['installPath'] for x in sorted(r,key=lambda x:x.get('lastUpdated',''),reverse=True) if os.path.isfile(os.path.join(x['installPath'],'scripts','wt_env.py'))),None);p or sys.exit('no usable harness@adhd-coder install in '+f);sys.exit(subprocess.call([sys.executable,os.path.join(p,'scripts','wt_env.py'),'down',os.environ['ORCA_WORKTREE_PATH']]))"
+# Agents must not start before the env files and ports exist.
+setupAgentStartupPolicy: wait-for-setup

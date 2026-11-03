@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7f7f8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0c0c0e" media="(prefers-color-scheme: dark)" />
+    <meta name="description" content="How to speak in a Teams, Zoom or Meet call with Speechless: install a virtual audio cable, tick it as an output, set it as the call's microphone, and let Speechless listen to the other side." />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/welcome/welcome.css" />
+    <title>Speechless – Speaking in a Teams or Zoom call</title>
+    <style>
+      /* Guide-only layout: a narrow measure, platform tabs and a key-value table. */
+      .guide {
+        max-width: 720px;
+      }
+      .guide .section-head {
+        margin-bottom: 28px;
+      }
+      .guide h2 {
+        font-size: clamp(26px, 3.4vw, 34px);
+      }
+      .guide h3 {
+        margin: 0;
+        font-size: 19px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .guide p,
+      .guide li {
+        font-size: 17px;
+        color: var(--muted-2);
+      }
+      .guide .lead {
+        font-size: 19px;
+      }
+      .guide ol.plain {
+        margin: 0;
+        padding-left: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .guide ul.plain {
+        margin: 0;
+        padding-left: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .guide kbd {
+        font: inherit;
+        font-weight: 600;
+        color: var(--ink);
+        background: var(--soft);
+        border-radius: 6px;
+        padding: 1px 7px;
+        white-space: normal;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
+      }
+      .guide .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .guide .card.stack {
+        gap: 12px;
+      }
+      .guide .cables {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 16px;
+      }
+      .guide .cables th,
+      .guide .cables td {
+        text-align: left;
+        vertical-align: top;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .guide .cables code {
+        font-size: 14px;
+        overflow-wrap: anywhere;
+      }
+      .guide .cables th {
+        width: 110px;
+        padding-right: 16px;
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .guide .cables td {
+        color: var(--muted-2);
+      }
+      .guide .cables tr:last-child th,
+      .guide .cables tr:last-child td {
+        border-bottom: 0;
+      }
+      .guide .note {
+        display: flex;
+        gap: 12px;
+        padding: 16px 18px;
+        border-radius: 16px;
+        background: var(--accent-soft);
+        color: var(--ink);
+        font-size: 15px;
+      }
+      .guide .note > span {
+        font-weight: 400;
+      }
+      .guide .note strong {
+        display: block;
+        margin-bottom: 2px;
+        font-weight: 600;
+      }
+      .hero.guide-hero {
+        padding-top: 48px;
+        padding-bottom: 8px;
+        display: block;
+      }
+      /* The intro sits on the same 720px column as the steps below it. */
+      .hero.guide-hero .hero-copy {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      .crumbs {
+        display: flex;
+        gap: 8px;
+        font-size: 14px;
+        color: var(--muted);
+        margin-bottom: 18px;
+      }
+      .crumbs a {
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .crumbs a:hover {
+        color: var(--accent);
+      }
+      @media (max-width: 760px) {
+        .hero.guide-hero {
+          padding-top: 24px;
+        }
+      }
+      @media (max-width: 520px) {
+        .guide .card {
+          padding: 18px;
+        }
+        .guide .cables,
+        .guide .cables tbody,
+        .guide .cables tr,
+        .guide .cables th,
+        .guide .cables td {
+          display: block;
+          width: auto;
+        }
+        .guide .cables th {
+          padding-bottom: 4px;
+          border-bottom: 0;
+        }
+        .guide .cables td {
+          padding-top: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <nav aria-label="Site">
+        <a class="brand" href="/welcome/">
+          <svg viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="8" fill="var(--primary)" /><circle cx="9" cy="14" r="2.3" fill="var(--on-primary)" /><circle cx="14" cy="14" r="2.3" fill="var(--on-primary)" /><circle cx="19" cy="14" r="2.3" fill="#ff7a4d" /></svg>
+          Speechless
+        </a>
+        <div class="nav-links">
+          <a href="/welcome/#how">How it works</a>
+          <a href="https://github.com/mysteriousHerb/speechless">Source</a>
+          <a class="button small" href="/">Open the app</a>
+        </div>
+      </nav>
+
+      <header class="hero guide-hero" id="top">
+        <div class="hero-copy">
+          <div class="crumbs"><a href="/welcome/">Speechless</a><span>/</span><span>Calls</span></div>
+          <span class="pill">Computer only · Chrome or Edge</span>
+          <h1>Your voice<br />in the meeting.</h1>
+          <p class="lead">Speechless plays into a virtual audio cable, the call app uses that cable as its microphone, and the other side hears you as if you were speaking. The cable is the one piece that is not in the app: it is a small system driver, and a web page cannot install one. Ten minutes, once.</p>
+        </div>
+      </header>
+    </div>
+
+    <section class="alt">
+      <div class="wrap guide">
+        <div class="section-head">
+          <span class="label">Step 1</span>
+          <h2>Install a virtual audio cable.</h2>
+          <p>A virtual cable is a fake speaker wired to a fake microphone: whatever plays into the speaker comes out of the microphone. Each platform has one; only Windows lacks an open-source option, because Windows audio drivers must be signed with a paid certificate.</p>
+        </div>
+        <div class="card">
+          <table class="cables">
+            <tr>
+              <th>Windows</th>
+              <td><a href="https://vb-audio.com/Cable/">VB-Cable</a> (free, donationware; closed source but the standard choice). Run the installer as administrator and reboot. It adds <kbd>CABLE Input</kbd> as a speaker and <kbd>CABLE Output</kbd> as a microphone.</td>
+            </tr>
+            <tr>
+              <th>macOS</th>
+              <td><a href="https://existential.audio/blackhole/">BlackHole</a> (open source, GPL). The 2-channel build is enough. It appears as <kbd>BlackHole 2ch</kbd> in both the output and input lists.</td>
+            </tr>
+            <tr>
+              <th>Linux</th>
+              <td>Nothing to install. PipeWire and PulseAudio have a null sink built in:
+                <code>pactl load-module module-null-sink sink_name=speechless sink_properties=device.description=Speechless</code>.
+                The sink is the speaker; its monitor, <kbd>Monitor of Speechless</kbd>, is the microphone.</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap guide">
+        <div class="section-head">
+          <span class="label">Step 2</span>
+          <h2>Tick the cable in Speechless.</h2>
+        </div>
+        <div class="stack">
+          <ol class="plain">
+            <li>Open the app in Chrome or Edge on the computer, then <kbd>Settings</kbd> → <kbd>Devices</kbd>.</li>
+            <li>Tap <kbd>Show names</kbd> if the devices are unnamed. The browser asks for microphone access once; that is only so it may show the device names.</li>
+            <li>Under <kbd>Speak through</kbd>, tick the cable's speaker side (<kbd>CABLE Input</kbd>, <kbd>BlackHole 2ch</kbd> or <kbd>Speechless</kbd>).</li>
+            <li>Tick your own headphones as well, so you hear what the call hears.</li>
+          </ol>
+          <div class="note">
+            <span>
+              <strong>Order matters</strong>
+              The volume slider on the Voice tab applies to every ticked output. Above 100% boosts the voice, which helps when the call hears it quietly.
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt">
+      <div class="wrap guide">
+        <div class="section-head">
+          <span class="label">Step 3</span>
+          <h2>Point the call app at the cable.</h2>
+          <p>In the call app, choose the cable's microphone side as your microphone. Keep your normal speakers or headphones as the speaker.</p>
+        </div>
+        <div class="stack">
+          <div class="card stack">
+            <h3>Teams</h3>
+            <p>Before a call: <kbd>Settings</kbd> → <kbd>Devices</kbd> → <kbd>Microphone</kbd>. During a call: the <kbd>More</kbd> (⋯) menu → <kbd>Settings</kbd> → <kbd>Device settings</kbd>. Turn off <kbd>Noise suppression</kbd> there, or Teams may clip the start of words.</p>
+          </div>
+          <div class="card stack">
+            <h3>Zoom</h3>
+            <p>The arrow next to the <kbd>Mute</kbd> button → pick the cable under <kbd>Select a microphone</kbd>. In <kbd>Audio settings</kbd> set <kbd>Suppress background noise</kbd> to Low and turn off <kbd>Automatically adjust microphone volume</kbd>.</p>
+          </div>
+          <div class="card stack">
+            <h3>Google Meet</h3>
+            <p><kbd>More options</kbd> (⋮) → <kbd>Settings</kbd> → <kbd>Audio</kbd> → <kbd>Microphone</kbd>. Meet has no noise-suppression toggle on the free tier, so if words clip, raise the volume in Speechless instead.</p>
+          </div>
+          <p>Type something in Speechless and tap <kbd>Speak</kbd>. The call app's microphone meter should move, and you should hear it in your headphones. Nothing sounds? Check that you ticked the cable's <em>speaker</em> side in Speechless and chose its <em>microphone</em> side in the call app; they have different names.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap guide">
+        <div class="section-head">
+          <span class="label">Step 4</span>
+          <h2>Let Speechless hear the call.</h2>
+          <p>Quick replies need to know what the other person said. On a computer the browser cannot hear a call through the microphone, so Speechless captures what the computer plays instead.</p>
+        </div>
+        <div class="stack">
+          <ol class="plain">
+            <li>Add your ElevenLabs key on the <kbd>Voice</kbd> tab if you have not. Transcribing a call uses ElevenLabs Scribe, so this part needs a key and costs Scribe minutes.</li>
+            <li>On the <kbd>Devices</kbd> tab set <kbd>Listen with</kbd> to <kbd>What this computer plays (Teams, Zoom), via ElevenLabs</kbd>.</li>
+            <li>Back in the conversation, tap the microphone button. Chrome opens its share dialog: choose <kbd>Entire screen</kbd> and tick <kbd>Also share system audio</kbd>.</li>
+          </ol>
+          <div class="note">
+            <span>
+              <strong>The screen is never recorded</strong>
+              Chrome shows a "sharing your screen" bar for as long as Listen is on, because sharing the screen is the only way Chrome offers system audio. Speechless drops the video track the instant sharing starts. The only thing that leaves the computer is the audio of someone speaking, sent for transcription. Your own voice is muted out while it plays, so it is not transcribed as "them".
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt">
+      <div class="wrap guide">
+        <div class="section-head">
+          <span class="label">If it does not work</span>
+          <h2>The usual suspects.</h2>
+        </div>
+        <ul class="plain">
+          <li><strong>The cable is not in the list.</strong> Reboot after installing it, then reload the app. On macOS, allow the driver in <kbd>System Settings</kbd> → <kbd>Privacy &amp; Security</kbd>.</li>
+          <li><strong>The tick-boxes are greyed out.</strong> That browser cannot choose an output device. Use Chrome or Edge on a computer; Safari, Firefox and phones cannot do this.</li>
+          <li><strong>The call hears nothing.</strong> The browser's own fallback voice always plays on the system default, not the cable. Check the badge in the app's header says ElevenLabs or Microsoft, not Browser voice.</li>
+          <li><strong>Words are clipped at the start.</strong> Turn off noise suppression in the call app; it mistakes the sudden onset of a synthetic voice for noise.</li>
+          <li><strong>It is too quiet.</strong> Raise the volume slider in Speechless above 100%, and turn off automatic microphone level adjustment in the call app.</li>
+          <li><strong>Listen hears my own voice too.</strong> Expected briefly at the tail of a clip. If it keeps happening, untick your headphones and listen to the call through them from the call app only.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="band">
+      <div class="wrap">
+        <div>
+          <h2>Set up once, then just type.</h2>
+          <p>The settings stay on this computer. Next call, open the app and speak.</p>
+        </div>
+        <a class="button" href="/">Open the app</a>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <footer>
+        <span class="brand">
+          <svg viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="8" fill="var(--primary)" /><circle cx="9" cy="14" r="2.3" fill="var(--on-primary)" /><circle cx="14" cy="14" r="2.3" fill="var(--on-primary)" /><circle cx="19" cy="14" r="2.3" fill="#ff7a4d" /></svg>
+          Speechless · made for one person who lost their voice, shared with everyone else
+        </span>
+        <nav aria-label="Footer">
+          <a href="/welcome/">About</a>
+          <a href="https://github.com/mysteriousHerb/speechless">GitHub</a>
+          <a href="/">Open the app</a>
+        </nav>
+      </footer>
+    </div>
+  </body>
+</html>

@@ -7,6 +7,7 @@ import {
   clearClipCache,
   fetchHealth,
   setOutputDevices,
+  setOutputProblemHandler,
   setVolume,
   speak,
   stopSpeaking,
@@ -16,7 +17,7 @@ import {
 import { FALLBACK_REPLIES, fetchSuggestions, type Turn } from './suggest'
 import { tidyText } from './tidy'
 import { useAppUpdate } from './update'
-import { GearIcon, Logo, MicIcon, PencilIcon, PlayIcon, StopIcon } from './icons'
+import { GearIcon, Logo, MicIcon, PencilIcon, PlayIcon, RepeatIcon } from './icons'
 
 const BACKEND_LABEL: Record<TtsBackend | 'none', string> = {
   elevenlabs: 'ElevenLabs',
@@ -60,6 +61,7 @@ export default function App() {
     settingsRef.current = settings
   }, [settings])
   useEffect(() => setOutputDevices(settings.outputDeviceIds), [settings.outputDeviceIds])
+  useEffect(() => setOutputProblemHandler((message) => setStatus({ kind: 'error', message })), [])
   useEffect(() => setVolume(settings.volume), [settings.volume])
 
   useEffect(() => {
@@ -122,7 +124,7 @@ export default function App() {
     }
     setStatus({ kind: 'speaking', text: trimmed, turn })
     try {
-      const used = await speak(trimmed, settings)
+      const used = await speak(trimmed, settings, serverHasKey)
       setLastUsed(used)
       setStatus({ kind: 'idle' })
     } catch (err) {
@@ -245,10 +247,10 @@ export default function App() {
   return (
     <div className="app">
       <header className="top">
-        <div className="brand">
+        <a className="brand" href="/welcome/" aria-label="Speechless home page">
           <Logo />
           <h1>Speechless</h1>
-        </div>
+        </a>
         <div className="top-actions">
           <span className={`badge${usingBrowserVoice ? ' fallback' : ''}`} title="Voice in use">
             {badge}
@@ -271,18 +273,46 @@ export default function App() {
       <main className="feed" ref={feedRef} aria-label="Conversation">
         {turns.length === 0 && !interim ? (
           <div className="empty">
-            <Logo />
-            <h2>Say it out loud</h2>
-            <p>
-              Type below and press <b>Speak</b>. Your phone says it in your chosen voice.
-            </p>
-            {canListen ? (
-              <p>
-                Tap <b>Listen</b> and it hears the other person, then offers quick replies.
-              </p>
-            ) : (
-              <p className="tip">Listening to the other person is not supported in this browser.</p>
-            )}
+            <div className="empty-copy">
+              <h2>
+                Say it
+                <br />
+                out loud.
+              </h2>
+              <p>Type, and your phone speaks it in the voice you pick. Nothing is stored anywhere but here.</p>
+            </div>
+            <ul className="empty-steps">
+              <li>
+                <span className="step-icon ink">
+                  <PencilIcon />
+                </span>
+                <span>
+                  <b>Type and tap Speak</b>
+                  <small>{hasLlm ? 'Typos are fixed on the way out' : 'Enter sends it too'}</small>
+                </span>
+              </li>
+              {canListen && (
+                <li>
+                  <span className="step-icon accent">
+                    <MicIcon />
+                  </span>
+                  <span>
+                    <b>Listen to the other person</b>
+                    <small>You get quick replies to tap</small>
+                  </span>
+                </li>
+              )}
+              <li>
+                <span className="step-icon">
+                  <RepeatIcon />
+                </span>
+                <span>
+                  <b>Tap anything you said to repeat it</b>
+                  <small>Edit it first with the pencil</small>
+                </span>
+              </li>
+            </ul>
+            {!canListen && <p className="tip">Listening to the other person is not supported in this browser.</p>}
           </div>
         ) : (
           <ul>
@@ -292,29 +322,6 @@ export default function App() {
                 <li key={i} className={`turn ${t.speaker}`}>
                   {t.speaker === 'me' ? (
                     <>
-                      <span className="turn-actions">
-                        <button
-                          type="button"
-                          className="turn-action"
-                          onClick={() => {
-                            setText(t.text)
-                            inputRef.current?.focus()
-                          }}
-                          aria-label={`Edit: ${t.text}`}
-                        >
-                          <PencilIcon />
-                        </button>
-                        <button
-                          type="button"
-                          className={`turn-action${playing ? ' on' : ''}`}
-                          onClick={() => (playing ? stop() : void say(t.text, { replay: true, turn: i }))}
-                          disabled={speaking && !playing}
-                          aria-label={playing ? `Stop: ${t.text}` : `Say again: ${t.text}`}
-                          aria-pressed={playing}
-                        >
-                          {playing ? <StopIcon /> : <PlayIcon />}
-                        </button>
-                      </span>
                       <button
                         type="button"
                         className={`bubble me${playing ? ' playing' : ''}`}
@@ -332,16 +339,46 @@ export default function App() {
                         )}
                         {t.text}
                       </button>
+                      {playing ? (
+                        <span className="turn-note">Speaking · tap to stop</span>
+                      ) : (
+                        <span className="turn-actions">
+                          <button
+                            type="button"
+                            className="turn-action"
+                            onClick={() => {
+                              setText(t.text)
+                              inputRef.current?.focus()
+                            }}
+                            aria-label={`Edit: ${t.text}`}
+                          >
+                            <PencilIcon />
+                          </button>
+                          <button
+                            type="button"
+                            className="turn-action"
+                            onClick={() => void say(t.text, { replay: true, turn: i })}
+                            disabled={speaking}
+                            aria-label={`Say again: ${t.text}`}
+                          >
+                            <PlayIcon />
+                          </button>
+                        </span>
+                      )}
                     </>
                   ) : (
-                    <span className="bubble them">{t.text}</span>
+                    <>
+                      <span className="turn-label">They said</span>
+                      <p className="turn-text">{t.text}</p>
+                    </>
                   )}
                 </li>
               )
             })}
             {interim && (
               <li className="turn them">
-                <span className="bubble them interim">{interim}…</span>
+                <span className="turn-label">They said</span>
+                <p className="turn-text interim">{interim}…</p>
               </li>
             )}
           </ul>
@@ -355,54 +392,59 @@ export default function App() {
         )}
       </main>
 
-      <div className="status" role="status" aria-live="polite">
-        {status.kind === 'tidying' && <span>Checking spelling…</span>}
-        {status.kind === 'speaking' && <span>Speaking: “{status.text}”</span>}
-        {status.kind === 'error' && <span className="error">{status.message}</span>}
-        {status.kind === 'idle' && listening && (
-          <span className="live">
-            {thinking
-              ? 'Thinking of replies…'
-              : settings.listenSource === 'system'
-                ? 'Listening to the call… (screen is not recorded, only speech is transcribed)'
-                : 'Listening…'}
-          </span>
-        )}
-        {status.kind === 'idle' && !listening && !hasLlm && turns.some((t) => t.speaker === 'them') && (
-          <span>No reply AI configured on the server.</span>
-        )}
-      </div>
-
       {chips.length > 0 && (
-        <div className="chips" aria-label="Quick replies">
-          {chips.map((c) => (
-            <span key={c} className="chip suggestion">
-              <button type="button" className="chip-say" onClick={() => void say(c)} disabled={speaking}>
-                {c}
-              </button>
-              <button
-                type="button"
-                className="chip-edit"
-                aria-label={`Edit "${c}" before speaking`}
-                onClick={() => {
-                  setText(c)
-                  inputRef.current?.focus()
-                }}
-              >
-                <PencilIcon />
-              </button>
-            </span>
-          ))}
-        </div>
+        <section className="chips" aria-label="Quick replies">
+          <div className="chips-head">
+            <span className="turn-label">Quick replies</span>
+            <small>Tap to say</small>
+          </div>
+          <div className="chips-grid">
+            {chips.map((c) => (
+              <span key={c} className="chip">
+                <button type="button" className="chip-say" onClick={() => void say(c)} disabled={speaking}>
+                  {c}
+                </button>
+                <button
+                  type="button"
+                  className="chip-edit"
+                  aria-label={`Edit "${c}" before speaking`}
+                  onClick={() => {
+                    setText(c)
+                    inputRef.current?.focus()
+                  }}
+                >
+                  <PencilIcon />
+                </button>
+              </span>
+            ))}
+          </div>
+        </section>
       )}
 
       <form className="composer" onSubmit={onSubmit}>
+        <div className="status" role="status" aria-live="polite">
+          {status.kind === 'tidying' && <span>Checking spelling…</span>}
+          {status.kind === 'speaking' && <span>Speaking: “{status.text}”</span>}
+          {status.kind === 'error' && <span className="error">{status.message}</span>}
+          {status.kind === 'idle' && listening && (
+            <span className="live">
+              {thinking
+                ? 'Thinking of replies…'
+                : settings.listenSource === 'system'
+                  ? 'Listening to the call… (screen is not recorded, only speech is transcribed)'
+                  : 'Listening to the other person…'}
+            </span>
+          )}
+          {status.kind === 'idle' && !listening && !hasLlm && turns.some((t) => t.speaker === 'them') && (
+            <span>No reply AI configured on the server.</span>
+          )}
+        </div>
         <textarea
           ref={inputRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="What do you want to say?"
+          placeholder="Type what you want to say"
           rows={2}
           autoFocus
           autoComplete="off"
@@ -417,9 +459,10 @@ export default function App() {
               className={`secondary listen ${listening ? 'on' : ''}`}
               onClick={toggleListening}
               aria-pressed={listening}
+              aria-label={listening ? 'Stop listening' : 'Listen to the other person'}
+              title={listening ? 'Stop listening' : 'Listen'}
             >
               {listening ? <span className="dot" /> : <MicIcon />}
-              {listening ? 'Listening' : 'Listen'}
             </button>
           )}
           <button

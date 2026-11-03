@@ -7,7 +7,12 @@ Product and milestones: `PLAN.md`. How to run: `README.md`.
   Tests: `cd api && uv run pytest`.
 - `web/` is Vite + React + TypeScript, PWA via `vite-plugin-pwa`.
   Checks: `cd web && npm run lint && npm run build`.
-- Dev ports: API 8000, web 5173 (Vite proxies `/api` to the API).
+- Dev ports: API 8000, web 5173 (Vite proxies `/api` to the API). A worktree slot gets its own
+  ports in a root `.env.dev` (written by the harness from `harness.toml`); `start-dev` and
+  `web/vite.config.ts` read it, so never hardcode 8000 or 5173 elsewhere.
+- Secrets live in the root `.env` of the canonical checkout (`~/github/speechless`, gitignored;
+  names in `.env.example`). New worktrees get a copy (`[env] copy` in `harness.toml`, run by
+  `orca.yaml` for Orca worktrees). A key that exists only inside a worktree dies with it.
 - Listening uses the browser Web Speech API (`web/src/listen.ts`), not a server STT, so it cannot be
   exercised from the dev box; verify on a real phone. Server STT (ElevenLabs Scribe) is a follow-up.
 - Voice backends live in `api/src/speechless_api/tts.py`: ElevenLabs (paid, keyed) and Microsoft
@@ -27,3 +32,7 @@ Product and milestones: `PLAN.md`. How to run: `README.md`.
   in `web/src/speech.ts`.
 - Audio on mobile must start from a user gesture: `web/src/speech.ts` resumes one shared
   `AudioContext` synchronously in the tap handler before any `await`. Keep it that way.
+
+Shared harness: workflow skills, agents and hooks come from the `harness@adhd-coder` plugin;
+`.agents/` and `AGENTS.md` are generated mirrors for Codex. See the `$overview` skill
+(`/harness:overview`) for how it behaves. This file carries project facts only.
