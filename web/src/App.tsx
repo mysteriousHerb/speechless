@@ -61,7 +61,11 @@ export default function App() {
     settingsRef.current = settings
   }, [settings])
   useEffect(() => setOutputDevices(settings.outputDeviceIds), [settings.outputDeviceIds])
-  useEffect(() => setOutputProblemHandler((message) => setStatus({ kind: 'error', message })), [])
+  // Kept apart from `status`: the sink rejection lands asynchronously, usually during the
+  // typo check, and the next status change would wipe it before anyone read it.
+  const [outputProblem, setOutputProblem] = useState<string | null>(null)
+  useEffect(() => setOutputProblemHandler(setOutputProblem), [])
+  useEffect(() => setOutputProblem(null), [settings.outputDeviceIds])
   useEffect(() => setVolume(settings.volume), [settings.volume])
 
   useEffect(() => {
@@ -426,6 +430,7 @@ export default function App() {
           {status.kind === 'tidying' && <span>Checking spelling…</span>}
           {status.kind === 'speaking' && <span>Speaking: “{status.text}”</span>}
           {status.kind === 'error' && <span className="error">{status.message}</span>}
+          {status.kind !== 'error' && outputProblem && <span className="error">{outputProblem}</span>}
           {status.kind === 'idle' && listening && (
             <span className="live">
               {thinking
