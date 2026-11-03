@@ -63,9 +63,16 @@ export default function App() {
   useEffect(() => setOutputDevices(settings.outputDeviceIds), [settings.outputDeviceIds])
   // Kept apart from `status`: the sink rejection lands asynchronously, usually during the
   // typo check, and the next status change would wipe it before anyone read it.
-  const [outputProblem, setOutputProblem] = useState<string | null>(null)
-  useEffect(() => setOutputProblemHandler(setOutputProblem), [])
-  useEffect(() => setOutputProblem(null), [settings.outputDeviceIds])
+  // It is tied to the device list it was raised for, so re-ticking outputs clears it.
+  const [outputProblem, setOutputProblem] = useState<{ message: string; devices: string[] } | null>(null)
+  useEffect(
+    () =>
+      setOutputProblemHandler((message) =>
+        setOutputProblem({ message, devices: settingsRef.current.outputDeviceIds }),
+      ),
+    [],
+  )
+  const outputWarning = outputProblem?.devices === settings.outputDeviceIds ? outputProblem.message : null
   useEffect(() => setVolume(settings.volume), [settings.volume])
 
   useEffect(() => {
@@ -430,7 +437,7 @@ export default function App() {
           {status.kind === 'tidying' && <span>Checking spelling…</span>}
           {status.kind === 'speaking' && <span>Speaking: “{status.text}”</span>}
           {status.kind === 'error' && <span className="error">{status.message}</span>}
-          {status.kind !== 'error' && outputProblem && <span className="error">{outputProblem}</span>}
+          {status.kind !== 'error' && outputWarning && <span className="error">{outputWarning}</span>}
           {status.kind === 'idle' && listening && (
             <span className="live">
               {thinking
