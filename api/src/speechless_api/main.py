@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated, Literal
 
 import anthropic
@@ -239,14 +240,41 @@ async def transcribe(
     return {"text": text}
 
 
+# Cache headers for the built app. FileResponse sends none, so browsers and any CDN in
+# front (Cloudflare caches .js by extension) guess, and a guessed-cached sw.js or
+# index.html is exactly how a phone keeps running an old build after a deploy: "Check for
+# updates" fetches sw.js and gets the stale copy back. Hashed files under /assets are
+# immutable; the entry points must always be revalidated.
+IMMUTABLE = "public, max-age=31536000, immutable"
+REVALIDATE = "no-cache"
+
+
+class ImmutableStaticFiles(StaticFiles):
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = IMMUTABLE
+        return response
+
+
+def static_target(dist: Path, path: str) -> Path:
+    """The file under `dist` to serve for a request path: a file as is, a directory's own
+    index.html (the landing pages at /welcome/ and /welcome/calls/, as a static host would
+    serve them), and the app shell for everything else. Never leaves `dist`: an encoded
+    "../" must not walk out to .env."""
+    root = dist.resolve()
+    candidate = (dist / path).resolve()
+    if path and candidate.is_relative_to(root):
+        if candidate.is_dir():
+            candidate = candidate / "index.html"
+        if candidate.is_file():
+            return candidate
+    return dist / "index.html"
+
+
 # Serve the built PWA from the same origin so one process is the whole deploy.
 if WEB_DIST.is_dir():
-    app.mount("/assets", StaticFiles(directory=WEB_DIST / "assets"), name="assets")
+    app.mount("/assets", ImmutableStaticFiles(directory=WEB_DIST / "assets"), name="assets")
 
     @app.get("/{path:path}", include_in_schema=False)
     async def spa(path: str):
-        # Only files under web/dist: an encoded "../" must not walk out to .env.
-        candidate = (WEB_DIST / path).resolve()
-        if path and candidate.is_relative_to(WEB_DIST.resolve()) and candidate.is_file():
-            return FileResponse(candidate)
-        return FileResponse(WEB_DIST / "index.html")
+        return FileResponse(static_target(WEB_DIST, path), headers={"Cache-Control": REVALIDATE})

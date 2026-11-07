@@ -52,7 +52,7 @@ def make_settings(
         tts_backend=backend,  # type: ignore[arg-type]
         elevenlabs_api_key=key,
         elevenlabs_voice_id="voice123",
-        elevenlabs_model_id="eleven_flash_v2_5",
+        elevenlabs_model_id="eleven_v4_turbo",
         elevenlabs_output_format="mp3_44100_128",
         edge_voice="en-US-AriaNeural",
         anthropic_api_key=anthropic_key,
@@ -200,7 +200,7 @@ def test_speak_streams_mp3_from_elevenlabs(client):
     assert req.url.path == "/v1/text-to-speech/voice123/stream"
     assert req.url.params["output_format"] == "mp3_44100_128"
     assert req.headers["xi-api-key"] == "env-key"
-    assert json.loads(req.content) == {"text": "hello there", "model_id": "eleven_flash_v2_5"}
+    assert json.loads(req.content) == {"text": "hello there", "model_id": "eleven_v4_turbo"}
     assert FakeCommunicate.created == []
 
 
@@ -660,3 +660,35 @@ def test_spa_never_serves_files_outside_web_dist(client):
     assert res.status_code == 200
     assert b"[project]" not in res.content
     assert b"<!doctype html" in res.content.lower()
+
+
+@pytest.mark.skipif(not main_module.WEB_DIST.is_dir(), reason="web/dist not built")
+def test_built_app_cache_headers() -> None:
+    # The entry points must be revalidated on every load or a phone never sees a new build;
+    # hashed assets can be cached forever.
+    client = TestClient(app)
+    for path in ("/", "/sw.js", "/manifest.webmanifest", "/settings"):
+        assert client.get(path).headers["cache-control"] == "no-cache", path
+    asset = next(main_module.WEB_DIST.glob("assets/*.js")).name
+    assert client.get(f"/assets/{asset}").headers["cache-control"] == main_module.IMMUTABLE
+
+
+def test_static_target_serves_files_directory_pages_and_the_app_shell(tmp_path):
+    dist = tmp_path / "dist"
+    (dist / "welcome" / "calls").mkdir(parents=True)
+    (dist / "index.html").write_text("app")
+    (dist / "welcome" / "index.html").write_text("landing")
+    (dist / "welcome" / "welcome.css").write_text("css")
+    (dist / "welcome" / "calls" / "index.html").write_text("guide")
+    (tmp_path / ".env").write_text("secret")
+
+    target = lambda path: main_module.static_target(dist, path)  # noqa: E731
+    assert target("welcome/welcome.css") == dist / "welcome" / "welcome.css"
+    assert target("welcome/") == dist / "welcome" / "index.html"
+    assert target("welcome") == dist / "welcome" / "index.html"
+    assert target("welcome/calls/") == dist / "welcome" / "calls" / "index.html"
+    # Anything else is the app shell, including the dist root itself and a walk-out attempt.
+    assert target("") == dist / "index.html"
+    assert target("settings") == dist / "index.html"
+    assert target("../.env") == dist / "index.html"
+    assert target("welcome/../../.env") == dist / "index.html"

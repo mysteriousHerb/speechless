@@ -1,7 +1,30 @@
-[dev]
-start = "./start-dev"      # API :8000 + Vite :5173 together
-ports = ["API_PORT", "WEB_PORT"]
+# harness.toml: per-repo facts for the shared harness (wt_env.py, the WorktreeCreate hook, Orca's
+# worktree hooks and the review scripts). Non-secret, tracked.
+
+[slots]
+# New worktrees land next to Orca's, under ~/orca/workspaces/speechless/<name>.
+parent = "../../orca/workspaces/speechless"
+pattern = "{name}"
+
+[ports]
+step = 1                       # slot n: API 8000+n, Vite 5173+n; the canonical checkout keeps 8000 / 5173
 
 [ports.vars]
 API_PORT = 8000
 WEB_PORT = 5173
+
+[env]
+# Secrets live in the canonical checkout's root .env (gitignored; names in .env.example). Each new
+# worktree gets a copy, so a worktree never has to be the only place a key exists.
+copy = [".env"]
+ports_file = ".env.dev"        # this slot's API_PORT / WEB_PORT; start-dev and vite.config.ts read it
+rewrite_urls = []              # .env holds no host:port URLs
+
+[run]
+npm_ci = ["web"]
+post_up = []
+pre_down = []
+
+[dev]
+start = "./start-dev"          # API + Vite together on this slot's ports
+ports = ["API_PORT", "WEB_PORT"]

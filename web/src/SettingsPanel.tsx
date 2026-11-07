@@ -23,6 +23,7 @@ import {
 } from './speech'
 import { deviceListingSupported, listAudioDevices, requestDeviceLabels, type AudioDevices } from './devices'
 import { APP_VERSION, type AppUpdate } from './update'
+import { ChevronLeftIcon, PlayIcon, StopIcon } from './icons'
 
 const PREVIEW_TEXT = "Hi, I've lost my voice, so I'm typing. This is how I sound."
 
@@ -44,8 +45,15 @@ export default function SettingsPanel({ settings, serverHasKey, hasLlm, appUpdat
   const [updateNote, setUpdateNote] = useState<string | null>(null)
   const checkForUpdate = async () => {
     setUpdateNote(null)
-    const found = await appUpdate.checkNow()
-    setUpdateNote(found ? 'New version found.' : 'You are on the latest version.')
+    const result = await appUpdate.checkNow()
+    setUpdateNote(
+      {
+        ready: 'New version found.',
+        latest: 'The server has this same build. Still looks old? Force reload.',
+        unavailable: 'No offline copy to update here (dev server). Force reload gets the latest.',
+        failed: 'Could not reach the server to check. Try Force reload.',
+      }[result],
+    )
   }
   const backend = effectiveBackend(settings, serverHasKey)
   const [catalogue, setCatalogue] = useState<ServerBackend>(backend === 'none' ? 'edge' : backend)
@@ -133,7 +141,7 @@ export default function SettingsPanel({ settings, serverHasKey, hasLlm, appUpdat
       setTimeout(() => setPreviewing((p) => (p === voice.id ? null : p)), 6000)
       return
     }
-    speak(PREVIEW_TEXT, settings, { backend: catalogue, voiceId: voice.id })
+    speak(PREVIEW_TEXT, settings, serverHasKey, { backend: catalogue, voiceId: voice.id })
       .catch(() => {})
       .finally(() => setPreviewing((p) => (p === voice.id ? null : p)))
   }
@@ -143,10 +151,10 @@ export default function SettingsPanel({ settings, serverHasKey, hasLlm, appUpdat
   return (
     <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <header className="top">
-        <h1 id="settings-title">Settings</h1>
-        <button type="button" className="link" onClick={onClose}>
-          Done
+        <button type="button" className="icon-button" onClick={onClose} aria-label="Done, back to the conversation">
+          <ChevronLeftIcon />
         </button>
+        <h1 id="settings-title">Settings</h1>
       </header>
 
       <div className="sheet-tabs">
@@ -266,8 +274,10 @@ export default function SettingsPanel({ settings, serverHasKey, hasLlm, appUpdat
                   className={`voice ${selected === '' ? 'on' : ''}`}
                   onClick={() => choose('')}
                 >
-                  <span className="voice-name">Default</span>
-                  <span className="voice-desc">Whatever the server is set to</span>
+                  <span className="voice-body">
+                    <span className="voice-name">Default</span>
+                    <span className="voice-desc">Whatever the server is set to</span>
+                  </span>
                 </button>
               </li>
               {shown.map((v) => (
@@ -279,16 +289,19 @@ export default function SettingsPanel({ settings, serverHasKey, hasLlm, appUpdat
                     className={`voice ${selected === v.id ? 'on' : ''}`}
                     onClick={() => choose(v.id)}
                   >
-                    <span className="voice-name">{v.name}</span>
-                    <span className="voice-desc">{v.description || v.id}</span>
+                    <span className="voice-body">
+                      <span className="voice-name">{v.name}</span>
+                      <span className="voice-desc">{v.description || v.id}</span>
+                    </span>
                   </button>
                   <button
                     type="button"
-                    className="play"
+                    className={`play${previewing === v.id ? ' on' : ''}`}
                     aria-label={previewing === v.id ? `Stop ${v.name}` : `Preview ${v.name}`}
+                    aria-pressed={previewing === v.id}
                     onClick={() => preview(v)}
                   >
-                    {previewing === v.id ? '■' : '▶'}
+                    {previewing === v.id ? <StopIcon /> : <PlayIcon />}
                   </button>
                 </li>
               ))}
@@ -375,7 +388,7 @@ export default function SettingsPanel({ settings, serverHasKey, hasLlm, appUpdat
             className="secondary small"
             onClick={() => {
               unlockAudio()
-              speak(PREVIEW_TEXT, settings).catch(() => {})
+              speak(PREVIEW_TEXT, settings, serverHasKey).catch(() => {})
             }}
           >
             Try it
@@ -416,7 +429,6 @@ export default function SettingsPanel({ settings, serverHasKey, hasLlm, appUpdat
                     .filter((d) => d.id && d.id !== 'default')
                     .map((d) => {
                       const ticked = settings.outputDeviceIds.includes(d.id)
-                      const isMain = settings.outputDeviceIds[0] === d.id
                       return (
                         <li key={d.id}>
                           <label>
@@ -434,7 +446,6 @@ export default function SettingsPanel({ settings, serverHasKey, hasLlm, appUpdat
                               }
                             />
                             <span>{d.label}</span>
-                            {isMain && settings.outputDeviceIds.length > 1 && <em>main</em>}
                           </label>
                         </li>
                       )
@@ -442,9 +453,18 @@ export default function SettingsPanel({ settings, serverHasKey, hasLlm, appUpdat
                 </ul>
               </div>
               <p className="hint">
-                {outputSelectionSupported()
-                  ? 'Tick every output the voice should play on. For a call, tick a virtual audio cable (and set it as the microphone in Teams or Zoom) plus your own headphones so you hear it too. The first ticked is the main output: the volume slider applies to it and the others play at normal volume. The browser’s own fallback voice always uses the system default.'
-                  : 'This browser cannot choose an output device (Chrome or Edge on a computer can). Change the output in the system settings instead.'}
+                {outputSelectionSupported() ? (
+                  <>
+                    Tick every output the voice should play on. For a call, tick a virtual audio cable (and set it as the
+                    microphone in Teams or Zoom) plus your own headphones so you hear it too. The volume slider applies
+                    to every ticked output. The browser’s own fallback voice always uses the system default.{' '}
+                    <a className="link" href="/welcome/calls/">
+                      Step-by-step guide
+                    </a>
+                  </>
+                ) : (
+                  'This browser cannot choose an output device (Chrome or Edge on a computer can). Change the output in the system settings instead.'
+                )}
               </p>
               <label className="field">
                 <span>Listen with</span>
@@ -498,21 +518,37 @@ export default function SettingsPanel({ settings, serverHasKey, hasLlm, appUpdat
       </div>
 
       <footer className="sheet-footer">
-        <span className="hint">Version {APP_VERSION}</span>
-        {appUpdate.needRefresh ? (
-          <button type="button" className="secondary small" onClick={() => void appUpdate.update()}>
-            Update now
-          </button>
-        ) : (
+        <span className="hint">
+          Version {APP_VERSION} ·{' '}
+          <a className="link" href="/welcome/">
+            About
+          </a>
+        </span>
+        <span className="footer-actions">
+          {appUpdate.needRefresh ? (
+            <button type="button" className="secondary small" onClick={() => void appUpdate.update()}>
+              Update now
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="secondary small"
+              onClick={() => void checkForUpdate()}
+              disabled={appUpdate.checking}
+            >
+              {appUpdate.checking ? 'Checking…' : 'Check for updates'}
+            </button>
+          )}
+          {/* The phone's Ctrl+Shift+R: drops the cached app and reloads from the server. */}
           <button
             type="button"
             className="secondary small"
-            onClick={() => void checkForUpdate()}
-            disabled={appUpdate.checking}
+            onClick={() => void appUpdate.forceReload()}
+            title="Clear the cached app and reload it from the server. Your settings stay."
           >
-            {appUpdate.checking ? 'Checking…' : 'Check for updates'}
+            Force reload
           </button>
-        )}
+        </span>
         {updateNote && !appUpdate.needRefresh && <span className="hint">{updateNote}</span>}
       </footer>
     </div>

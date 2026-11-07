@@ -44,13 +44,15 @@ server falls back to its own defaults (`TTS_BACKEND=auto`) when the app sends no
 
 ## Speaking into a call (Teams, Zoom, Meet)
 
+The app ships a step-by-step guide at `/welcome/calls/` (source in
+`web/public/welcome/calls/`); this section is the short version.
+
 Settings → **Audio devices** → *Speak through* is a tick-list of outputs; the voice plays
 on every ticked device at once. Install a virtual audio cable (VB-Cable on Windows,
 BlackHole on macOS, a PipeWire/PulseAudio null sink on Linux), tick it in Speechless, and
 pick the same cable as the **microphone** in the call app. Typed text now comes out as
-your voice in the call. Tick your headphones as well to hear it yourself. The first
-ticked device is the main output, the one the volume slider boosts; the rest play at
-normal volume. Works in Chrome and Edge on a computer; Safari and phones cannot choose
+your voice in the call. Tick your headphones as well to hear it yourself; the volume
+slider applies to every ticked device. Works in Chrome and Edge on a computer; Safari and phones cannot choose
 an output device, so there the system default is used. Turn off noise suppression in the
 call app if words get clipped.
 
@@ -101,7 +103,8 @@ cd ../api && uv run fastapi run src/speechless_api/main.py   # serves app + API 
 
 After a new `npm run build`, phones already running the app show an **Update** banner (or use
 Settings → *Check for updates*); nothing switches silently. Settings shows the build's git hash
-and time so you can tell which version a device is on.
+and time so you can tell which version a device is on. *Force reload* next to it is the phone's
+hard refresh: it drops the cached app (not your settings) and reloads from the server.
 
 ## Put it on the internet (Cloudflare Tunnel + Access)
 
@@ -143,7 +146,7 @@ cd web && npm run lint && npm run build
 | `ELEVENLABS_API_KEY` | no, the app can supply one | — (auto falls back to Edge) |
 | `EDGE_TTS_VOICE` | no | `en-US-AriaNeural` |
 | `ELEVENLABS_VOICE_ID` | no | `21m00Tcm4TlvDq8ikWAM` (Rachel) |
-| `ELEVENLABS_MODEL_ID` | no | `eleven_flash_v2_5` |
+| `ELEVENLABS_MODEL_ID` | no | `eleven_v4_turbo` |
 | `ANTHROPIC_API_KEY` | for quick replies and the pre-speech typo fix (simplest) | — (uses Claude; nothing else needed) |
 | `LLM_BASE_URL` | for an OpenAI-compatible LLM instead | — (e.g. `https://<resource>.openai.azure.com/openai/v1`; selects this provider) |
 | `LLM_API_KEY` | with `LLM_BASE_URL` | — |

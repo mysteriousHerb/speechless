@@ -271,7 +271,8 @@ export class ServerListener {
     }
     const body = (await res.json()) as { text?: string }
     const text = (body.text ?? '').trim()
-    if (text && this.wanted) this.cb.onFinal(text)
+    // Scribe answers "……" for a near-silent clip; a transcript with no letters is not a turn.
+    if (text && /\p{L}/u.test(text) && this.wanted) this.cb.onFinal(text)
   }
 }
 
